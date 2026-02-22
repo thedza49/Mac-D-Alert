@@ -40,7 +40,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ── Yahoo Finance direct API ──────────────────────────────────────────────────
-YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+YAHOO_URL = "https://query2.finance.yahoo.com/v8/finance/chart/{ticker}"
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 "
