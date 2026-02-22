@@ -1,3 +1,5 @@
 
 # Python cache
 scripts/__pycache__/
+# ignore python cache
+scripts/__pycache__/
