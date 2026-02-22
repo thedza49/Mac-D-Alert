@@ -1,8 +1,21 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Python cache
-scripts/__pycache__/
-# ignore python cache
-scripts/__pycache__/
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
 
-# local python cache
-scripts/__pycache__/
+# Logs
+*.log
+nohup.out
+
+# Database
+*.db
+
+# OS
+.DS_Store
