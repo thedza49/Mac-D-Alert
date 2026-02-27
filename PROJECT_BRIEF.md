@@ -22,6 +22,7 @@ Mac-D-Alert is a stock market technical analysis tool designed to identify "Buy"
 ## 🚀 Transferable Context for Other AIs
 - **DB Schema**: Tables include `daily_prices`, `macd_5d_data`, `signals`, `tickers`, and `earnings_data`.
 - **Key Logic**: Signals are generated when the MACD Histogram turns positive and price action shows upward momentum.
+- **Backtesting Requirement**: All final notifications (Phase 2 Discord integration) must include backtesting results to validate the historical accuracy of the signal for that specific ticker.
 - **Active Tickers**: AAPL, META, MSFT, NVDA (Magnificent 7 base).
 
 ## 📅 Recent Updates (Feb 25-26)
