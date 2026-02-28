@@ -78,7 +78,7 @@ TEMPLATE = """
             <th>Ticker</th>
             <th>Price</th>
             <th>Backtesting (1w / 3w / Peak / Exit)</th>
-            <th>Recent Analyst Calls</th>
+            <th>Recent Analyst Sentiment</th>
             <th>Phase</th>
             <th>Graph</th>
         </tr>
