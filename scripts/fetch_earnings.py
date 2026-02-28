@@ -33,6 +33,7 @@ BASE_DIR = Path("/home/daniel/sovson-analytics")
 DB_PATH  = BASE_DIR / "data" / "sovson_analytics.db"
 LOG_DIR  = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
+ENV_PATH = Path("/home/daniel/Mac-D-Alert/scripts/.env")
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -45,8 +46,27 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# ── Load FMP Key ──────────────────────────────────────────────────────────────
+def load_env():
+    if not ENV_PATH.exists():
+        return {}
+    env = {}
+    with open(ENV_PATH, "r") as f:
+        for line in f:
+            if "=" in line:
+                k, v = line.strip().split("=", 1)
+                env[k] = v
+    return env
+
+ENV = load_env()
+FMP_API_KEY = ENV.get("FMP_API_KEY")
+
 # ── Yahoo Finance endpoints ───────────────────────────────────────────────────
 YAHOO_QUOTE_URL   = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
+# ── FMP endpoints ─────────────────────────────────────────────────────────────
+FMP_ANALYST_URL = "https://financialmodelingprep.com/stable/upgrades-downgrades-consensus-bulk?symbol={ticker}&apikey={apikey}"
+FMP_TARGETS_URL = "https://financialmodelingprep.com/stable/price-target-summary-bulk?symbol={ticker}&apikey={apikey}"
+
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 "
@@ -108,6 +128,31 @@ def safe_get(d: dict, *keys, default=None):
     return d
 
 
+def fetch_fmp_analyst_calls(ticker: str) -> list[dict]:
+    """Fetches the last 5 analyst calls from FMP."""
+    if not FMP_API_KEY:
+        log.warning(f"{ticker}: FMP_API_KEY not set, skipping analyst calls")
+        return []
+    
+    url = FMP_ANALYST_URL.format(ticker=ticker, apikey=FMP_API_KEY)
+    try:
+        resp = requests.get(url, timeout=15)
+        if resp.status_code == 200:
+            calls = resp.json()
+            # Return last 5: {Firm, Action, Target, Date}
+            return [
+                {
+                    "firm": c.get("gradingCompany"),
+                    "action": c.get("action"),
+                    "target": c.get("priceTarget"),
+                    "date": c.get("publishedDate")[:10] if c.get("publishedDate") else None
+                }
+                for c in calls[:5]
+            ]
+    except Exception as e:
+        log.error(f"{ticker}: FMP analyst fetch failed - {e}")
+    return []
+
 def parse_earnings_data(ticker: str) -> dict | None:
     """
     Fetches and parses all earnings/analyst data for a ticker.
@@ -121,93 +166,92 @@ def parse_earnings_data(ticker: str) -> dict | None:
     ]
 
     data = fetch_quote_summary(ticker, modules)
-    if not data:
-        return None
+    # If Yahoo fails, we still want to try FMP for analyst calls if possible
+    # but the current structure expects a full 'data' dict. 
+    # Let's make it robust.
 
     today = date.today().isoformat()
+    
+    if data:
+        # ── Current price ─────────────────────────────────────────────────────────
+        fin = data.get("financialData", {})
+        current_price = safe_get(fin, "currentPrice", "raw")
 
-    # ── Current price ─────────────────────────────────────────────────────────
-    fin = data.get("financialData", {})
-    current_price = safe_get(fin, "currentPrice", "raw")
+        # ── Analyst ratings ───────────────────────────────────────────────────────
+        num_buy      = safe_get(fin, "numberOfAnalystOpinions", "raw", default=0) or 0
+        avg_target   = safe_get(fin, "targetMeanPrice",  "raw")
+        target_high  = safe_get(fin, "targetHighPrice",  "raw")
+        target_low   = safe_get(fin, "targetLowPrice",   "raw")
 
-    # ── Analyst ratings ───────────────────────────────────────────────────────
-    num_buy      = safe_get(fin, "numberOfAnalystOpinions", "raw", default=0) or 0
-    avg_target   = safe_get(fin, "targetMeanPrice",  "raw")
-    target_high  = safe_get(fin, "targetHighPrice",  "raw")
-    target_low   = safe_get(fin, "targetLowPrice",   "raw")
+        # Yahoo gives a recommendationKey: "buy", "hold", "sell", "strongBuy" etc.
+        rec_mean = safe_get(fin, "recommendationMean", "raw")
 
-    # Yahoo gives a recommendationKey: "buy", "hold", "sell", "strongBuy" etc.
-    # and recommendationMean (1=strongBuy, 3=hold, 5=strongSell)
-    rec_key  = safe_get(fin, "recommendationKey", default="none")
-    rec_mean = safe_get(fin, "recommendationMean", "raw")
+        num_buy_ratings  = None
+        num_hold_ratings = None
+        num_sell_ratings = None
+        buy_ratio        = None
 
-    # Derive approximate buy/hold/sell split from recommendation mean
-    # Yahoo doesn't give exact counts per rating in financialData,
-    # but we can classify the overall recommendation
-    num_buy_ratings  = None
-    num_hold_ratings = None
-    num_sell_ratings = None
-    buy_ratio        = None
+        if rec_mean is not None and num_buy > 0:
+            if rec_mean <= 1.5: buy_ratio = 0.90
+            elif rec_mean <= 2.0: buy_ratio = 0.75
+            elif rec_mean <= 2.5: buy_ratio = 0.60
+            elif rec_mean <= 3.0: buy_ratio = 0.45
+            elif rec_mean <= 3.5: buy_ratio = 0.30
+            else: buy_ratio = 0.15
 
-    if rec_mean is not None and num_buy > 0:
-        # rec_mean: 1.0-1.5 = strong buy, 1.5-2.5 = buy, 2.5-3.5 = hold,
-        #           3.5-4.5 = underperform, 4.5-5.0 = sell
-        if rec_mean <= 1.5:
-            buy_ratio = 0.90
-        elif rec_mean <= 2.0:
-            buy_ratio = 0.75
-        elif rec_mean <= 2.5:
-            buy_ratio = 0.60
-        elif rec_mean <= 3.0:
-            buy_ratio = 0.45
-        elif rec_mean <= 3.5:
-            buy_ratio = 0.30
-        else:
-            buy_ratio = 0.15
+            num_buy_ratings  = round(num_buy * buy_ratio)
+            num_hold_ratings = round(num_buy * (1 - buy_ratio) * 0.7)
+            num_sell_ratings = num_buy - num_buy_ratings - num_hold_ratings
 
-        num_buy_ratings  = round(num_buy * buy_ratio)
-        num_hold_ratings = round(num_buy * (1 - buy_ratio) * 0.7)
-        num_sell_ratings = num_buy - num_buy_ratings - num_hold_ratings
+        upside_pct = None
+        if current_price and avg_target:
+            upside_pct = round(((avg_target - current_price) / current_price) * 100, 2)
 
-    # Upside to price target
-    upside_pct = None
-    if current_price and avg_target:
-        upside_pct = round(((avg_target - current_price) / current_price) * 100, 2)
+        stats      = data.get("defaultKeyStatistics", {})
+        forward_pe = safe_get(stats, "forwardPE", "raw")
 
-    # ── Forward P/E ───────────────────────────────────────────────────────────
-    stats      = data.get("defaultKeyStatistics", {})
-    forward_pe = safe_get(stats, "forwardPE", "raw")
+        calendar        = data.get("calendarEvents", {})
+        earnings_dates  = safe_get(calendar, "earnings", "earningsDate", default=[])
+        next_earnings   = None
+        days_until      = None
 
-    # ── Next earnings date ────────────────────────────────────────────────────
-    calendar        = data.get("calendarEvents", {})
-    earnings_dates  = safe_get(calendar, "earnings", "earningsDate", default=[])
-    next_earnings   = None
-    days_until      = None
+        if earnings_dates:
+            try:
+                ts = earnings_dates[0].get("raw")
+                if ts:
+                    next_dt      = datetime.fromtimestamp(ts).date()
+                    next_earnings = next_dt.isoformat()
+                    days_until   = (next_dt - date.today()).days
+            except (IndexError, TypeError, OSError):
+                pass
 
-    if earnings_dates:
-        try:
-            ts = earnings_dates[0].get("raw")
-            if ts:
-                next_dt      = datetime.fromtimestamp(ts).date()
-                next_earnings = next_dt.isoformat()
-                days_until   = (next_dt - date.today()).days
-        except (IndexError, TypeError, OSError):
-            pass
+        history = data.get("earningsHistory", {})
+        hist_list = safe_get(history, "history", default=[])
+        last_4_quarters = []
+        for q in hist_list[-4:]:
+            last_4_quarters.append({
+                "date": safe_get(q, "quarter", "fmt"),
+                "estimate": safe_get(q, "epsEstimate", "raw"),
+                "actual": safe_get(q, "epsActual", "raw"),
+                "surprise_pct": safe_get(q, "surprisePercent", "raw"),
+            })
+    else:
+        # Defaults if Yahoo fails
+        current_price = None
+        num_buy_ratings = None
+        num_hold_ratings = None
+        num_sell_ratings = None
+        buy_ratio = None
+        avg_target = None
+        upside_pct = None
+        forward_pe = None
+        next_earnings = None
+        days_until = None
+        last_4_quarters = []
 
-    # ── Last 4 quarters earnings ──────────────────────────────────────────────
-    history = data.get("earningsHistory", {})
-    hist_list = safe_get(history, "history", default=[])
-    last_4_quarters = []
-
-    for q in hist_list[-4:]:
-        quarter = {
-            "date":     safe_get(q, "quarter", "fmt"),
-            "estimate": safe_get(q, "epsEstimate", "raw"),
-            "actual":   safe_get(q, "epsActual",   "raw"),
-            "surprise_pct": safe_get(q, "surprisePercent", "raw"),
-        }
-        last_4_quarters.append(quarter)
-
+    # ── FMP Individual Analyst Calls (Override/Enrich) ────────────────────────
+    fmp_calls = fetch_fmp_analyst_calls(ticker)
+    
     return {
         "ticker":                  ticker,
         "fetched_date":            today,
@@ -221,8 +265,9 @@ def parse_earnings_data(ticker: str) -> dict | None:
         "current_price":           round(current_price, 4) if current_price else None,
         "upside_to_target_pct":    upside_pct,
         "forward_pe":              round(forward_pe, 2) if forward_pe else None,
-        "sector_avg_pe":           None,   # reserved for future FMP enrichment
+        "sector_avg_pe":           None,
         "last_4_quarters_json":    json.dumps(last_4_quarters) if last_4_quarters else None,
+        "recent_analyst_calls_json": json.dumps(fmp_calls) if fmp_calls else None,
     }
 
 
@@ -249,12 +294,14 @@ def upsert_earnings(conn: sqlite3.Connection, row: dict) -> None:
             ticker, fetched_date, next_earnings_date, days_until_earnings,
             num_buy_ratings, num_hold_ratings, num_sell_ratings, buy_ratio,
             avg_price_target, current_price, upside_to_target_pct,
-            forward_pe, sector_avg_pe, last_4_quarters_json
+            forward_pe, sector_avg_pe, last_4_quarters_json,
+            recent_analyst_calls_json
         ) VALUES (
             :ticker, :fetched_date, :next_earnings_date, :days_until_earnings,
             :num_buy_ratings, :num_hold_ratings, :num_sell_ratings, :buy_ratio,
             :avg_price_target, :current_price, :upside_to_target_pct,
-            :forward_pe, :sector_avg_pe, :last_4_quarters_json
+            :forward_pe, :sector_avg_pe, :last_4_quarters_json,
+            :recent_analyst_calls_json
         )
         ON CONFLICT(ticker, fetched_date) DO UPDATE SET
             next_earnings_date   = excluded.next_earnings_date,
@@ -267,7 +314,8 @@ def upsert_earnings(conn: sqlite3.Connection, row: dict) -> None:
             current_price        = excluded.current_price,
             upside_to_target_pct = excluded.upside_to_target_pct,
             forward_pe           = excluded.forward_pe,
-            last_4_quarters_json = excluded.last_4_quarters_json
+            last_4_quarters_json = excluded.last_4_quarters_json,
+            recent_analyst_calls_json = excluded.recent_analyst_calls_json
         """,
         row,
     )
