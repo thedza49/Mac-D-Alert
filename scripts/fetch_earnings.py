@@ -29,11 +29,11 @@ from datetime import date, datetime
 import requests
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-BASE_DIR = Path("/home/daniel/sovson-analytics")
+BASE_DIR = Path("/home/daniel/Mac-D-Alert")
 DB_PATH  = BASE_DIR / "data" / "sovson_analytics.db"
 LOG_DIR  = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
-ENV_PATH = Path("/home/daniel/Mac-D-Alert/scripts/.env")
+ENV_PATH = BASE_DIR / "scripts" / ".env"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
