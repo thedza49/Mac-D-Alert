@@ -34,7 +34,7 @@ from datetime import date, timedelta, datetime
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path("/home/daniel/Mac-D-Alert")
-DB_PATH  = BASE_DIR / "data" / "sovson_analytics.db"
+DB_PATH  = Path("/home/daniel/sovson-analytics/data/sovson_analytics.db")
 LOG_DIR  = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 SCRIPTS_DIR = BASE_DIR / "scripts"

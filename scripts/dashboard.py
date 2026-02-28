@@ -13,7 +13,7 @@ from flask import Flask, render_template_string, send_from_directory
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path("/home/daniel/Mac-D-Alert")
-DB_PATH  = BASE_DIR / "data" / "sovson_analytics.db"
+DB_PATH  = Path("/home/daniel/sovson-analytics/data/sovson_analytics.db")
 STATIC_DIR = BASE_DIR / "scripts" / "static"
 
 app = Flask(__name__)
