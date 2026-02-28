@@ -6,7 +6,7 @@ import os
 from datetime import datetime
 
 def generate_static_graph(ticker='AAPL'):
-    db_path = '/home/daniel/Mac-D-Alert/data/sovson_analytics.db'
+    db_path = '/home/daniel/sovson-analytics/data/sovson_analytics.db'
     output_dir = '/home/daniel/Mac-D-Alert/scripts/static'
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, f'graph_{ticker}.png')
