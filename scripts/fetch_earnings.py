@@ -64,8 +64,7 @@ FMP_API_KEY = ENV.get("FMP_API_KEY")
 # ── Yahoo Finance endpoints ───────────────────────────────────────────────────
 YAHOO_QUOTE_URL   = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
 # ── FMP endpoints ─────────────────────────────────────────────────────────────
-FMP_ANALYST_URL = "https://financialmodelingprep.com/stable/upgrades-downgrades-consensus-bulk?symbol={ticker}&apikey={apikey}"
-FMP_TARGETS_URL = "https://financialmodelingprep.com/stable/price-target-summary-bulk?symbol={ticker}&apikey={apikey}"
+FMP_TARGETS_URL = "https://financialmodelingprep.com/stable/price-target-summary?symbol={ticker}&apikey={apikey}"
 
 HEADERS = {
     "User-Agent": (
@@ -129,26 +128,38 @@ def safe_get(d: dict, *keys, default=None):
 
 
 def fetch_fmp_analyst_calls(ticker: str) -> list[dict]:
-    """Fetches the last 5 analyst calls from FMP."""
+    """Fetches the price target summary from FMP."""
     if not FMP_API_KEY:
         log.warning(f"{ticker}: FMP_API_KEY not set, skipping analyst calls")
         return []
     
-    url = FMP_ANALYST_URL.format(ticker=ticker, apikey=FMP_API_KEY)
+    url = FMP_TARGETS_URL.format(ticker=ticker, apikey=FMP_API_KEY)
     try:
         resp = requests.get(url, timeout=15)
         if resp.status_code == 200:
-            calls = resp.json()
-            # Return last 5: {Firm, Action, Target, Date}
+            data = resp.json()
+            if not data:
+                return []
+            
+            # Since individual calls are restricted/unsupported on current API version,
+            # we return the summary metrics as a "virtual" feed entry for the dashboard.
+            s = data[0]
             return [
                 {
-                    "firm": c.get("gradingCompany"),
-                    "action": c.get("action"),
-                    "target": c.get("priceTarget"),
-                    "date": c.get("publishedDate")[:10] if c.get("publishedDate") else None
+                    "firm": "FMP Consensus (1M)",
+                    "action": f"{s.get('lastMonthCount')} Analysts",
+                    "target": s.get("lastMonthAvgPriceTarget"),
+                    "date": "Recent"
+                },
+                {
+                    "firm": "FMP Consensus (3M)",
+                    "action": f"{s.get('lastQuarterCount')} Analysts",
+                    "target": s.get("lastQuarterAvgPriceTarget"),
+                    "date": "90 Days"
                 }
-                for c in calls[:5]
             ]
+        else:
+            log.error(f"{ticker}: FMP HTTP {resp.status_code}")
     except Exception as e:
         log.error(f"{ticker}: FMP analyst fetch failed - {e}")
     return []
