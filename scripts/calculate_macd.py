@@ -238,8 +238,12 @@ def process_ticker(conn: sqlite3.Connection, ticker: str) -> int:
         period_start = indices[start_idx].strftime("%Y-%m-%d")
         period_end   = idx.strftime("%Y-%m-%d")
 
+        # DEBUG: print values
+        if period_end == '2026-02-27':
+            log.info(f"DEBUG {ticker}: upserting period_end={period_end}")
+
         upsert_macd_row(conn, ticker, {
-            "calculation_date": today_str,
+            "calculation_date": period_end,
             "period_start_date": period_start,
             "period_end_date":   period_end,
             "macd_line":         round(float(row_today["macd_line"]),   6),

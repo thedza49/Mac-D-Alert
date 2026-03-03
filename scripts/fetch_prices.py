@@ -122,6 +122,8 @@ def upsert_prices(conn: sqlite3.Connection, ticker: str, df: pd.DataFrame) -> in
     for date, row in df.iterrows():
         # Handle date index which might be datetime or string
         date_str = date.strftime("%Y-%m-%d") if hasattr(date, "strftime") else str(date)
+        if date_str == '2026-02-27':
+            log.info(f"DEBUG: Processing {ticker} date: {date_str} (type: {type(date)})")
         cur.execute(
             """
             INSERT INTO daily_prices
@@ -177,7 +179,9 @@ def main() -> None:
             continue
 
         df    = calculate_heikin_ashi(df)
+        log.info(f"{ticker}: calculated Heikin Ashi ({len(df)} rows)")
         rows  = upsert_prices(conn, ticker, df)
+        log.info(f"{ticker}: upserted {rows} rows to database")
         start = df.index[0].strftime("%Y-%m-%d") if hasattr(df.index[0], "strftime") else str(df.index[0])
         end   = df.index[-1].strftime("%Y-%m-%d") if hasattr(df.index[-1], "strftime") else str(df.index[-1])
 
