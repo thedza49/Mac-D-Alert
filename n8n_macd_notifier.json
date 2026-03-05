@@ -83,4 +83,52 @@
         300
       ]
     }
-  ],\n  \"connections\": {\n    \"Check Signals Every Hour\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Fetch New Signals\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Fetch New Signals\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Format Data\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Format Data\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Send to Discord\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    },\n    \"Send to Discord\": {\n      \"main\": [\n        [\n          {\n            \"node\": \"Mark as Notified\",\n            \"type\": \"main\",\n            \"index\": 0\n          }\n        ]\n      ]\n    }\n  },\n  \"active\": true,\n  \"settings\": {},\n  \"versionId\": \"12345\",\n  \"id\": \"macd_notifier\",\n  \"meta\": {\n    \"instanceId\": \"sovson_pi\"\n  }\n}
+  ],
+  "connections": {
+    "Check Signals Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Fetch New Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch New Signals": {
+      "main": [
+        [
+          {
+            "node": "Format Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data": {
+      "main": [
+        [
+          {
+            "node": "Send to Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Discord": {
+      "main": [
+        [
+          {
+            "node": "Mark as Notified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {}
+}
