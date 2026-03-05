@@ -1,5 +1,5 @@
 {
-  "name": "Mac-D-Alert Discord Notifier",
+  "name": "Mac-D-Alert Discord Notifier (v2 - SQLite Node)",
   "nodes": [
     {
       "parameters": {
@@ -11,7 +11,7 @@
           ]
         }
       },
-      "id": "76162594-5555-4444-8888-000000000001",
+      "id": "1",
       "name": "Check Signals Every Hour",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
@@ -22,22 +22,28 @@
     },
     {
       "parameters": {
-        "command": "sqlite3 /home/daniel/sovson-analytics/data/sovson_analytics.db -json \"SELECT s.id, s.ticker, s.signal_date, s.signal_type, s.price_at_signal, e.recent_analyst_calls_json, (SELECT (SUM(CASE WHEN peak_gain_pct > 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) FROM signals WHERE ticker = s.ticker AND signal_type = 'BUY') as win_rate, (SELECT AVG(peak_gain_pct) FROM signals WHERE ticker = s.ticker AND signal_type = 'BUY') as avg_peak FROM signals s LEFT JOIN earnings_data e ON e.ticker = s.ticker AND e.fetched_date = (SELECT MAX(fetched_date) FROM earnings_data WHERE ticker = s.ticker) WHERE s.discord_message_id IS NULL ORDER BY s.signal_date DESC;\""
+        "operation": "executeQuery",
+        "query": "SELECT s.id, s.ticker, s.signal_date, s.signal_type, s.price_at_signal, e.recent_analyst_calls_json, (SELECT (SUM(CASE WHEN peak_gain_pct > 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) FROM signals WHERE ticker = s.ticker AND signal_type = 'BUY') as win_rate, (SELECT AVG(peak_gain_pct) FROM signals WHERE ticker = s.ticker AND signal_type = 'BUY') as avg_peak FROM signals s LEFT JOIN earnings_data e ON e.ticker = s.ticker AND e.fetched_date = (SELECT MAX(fetched_date) FROM earnings_data WHERE ticker = s.ticker) WHERE s.discord_message_id IS NULL ORDER BY s.signal_date DESC;"
       },
-      "id": "76162594-5555-4444-8888-000000000002",
+      "id": "2",
       "name": "Fetch New Signals",
-      "type": "n8n-nodes-base.executeCommand",
+      "type": "n8n-nodes-base.sqlite",
       "typeVersion": 1,
       "position": [
         450,
         300
-      ]
+      ],
+      "credentials": {
+        "sqlite": {
+          "id": "sovson_db_cred"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const signals = JSON.parse(items[0].json.stdout || '[]');\nreturn signals.map(s => ({\n  json: {\n    ...s,\n    color: s.signal_type.includes('BUY') ? 3066993 : 15158332,\n    emoji: s.signal_type.includes('BUY') ? '🟢' : '🔴',\n    analysts: JSON.parse(s.recent_analyst_calls_json || '[]')\n  }\n}));"
+        "jsCode": "return items.map(s => ({\n  json: {\n    ...s.json,\n    color: s.json.signal_type.includes('BUY') ? 3066993 : 15158332,\n    emoji: s.json.signal_type.includes('BUY') ? '🟢' : '🔴',\n    analysts: JSON.parse(s.json.recent_analyst_calls_json || '[]')\n  }\n}));"
       },
-      "id": "76162594-5555-4444-8888-000000000003",
+      "id": "3",
       "name": "Format Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 1,
@@ -58,10 +64,9 @@
               "value": "=[{\n  \"title\": \"{{$json.emoji}} {{$json.signal_type.replace('_', ' ')}}: {{$json.ticker}}\",\n  \"color\": {{$json.color}},\n  \"fields\": [\n    {\n      \"name\": \"Price at Signal\",\n      \"value\": \"${{$json.price_at_signal.toFixed(2)}}\",\n      \"inline\": true\n    },\n    {\n      \"name\": \"Historical Win Rate\",\n      \"value\": \"{{$json.win_rate ? $json.win_rate.toFixed(0) + '%' : 'N/A'}}\",\n      \"inline\": true\n    },\n    {\n      \"name\": \"Avg Peak Return\",\n      \"value\": \"{{$json.avg_peak ? '+' + $json.avg_peak.toFixed(1) + '%' : 'N/A'}}\",\n      \"inline\": true\n    },\n    {\n      \"name\": \"Top Analyst Sentiment\",\n      \"value\": \"{{$json.analysts.length > 0 ? $json.analysts[0].firm + ': ' + $json.analysts[0].action : 'No recent analyst data.'}}\"\n    }\n  ],\n  \"footer\": {\n    \"text\": \"Sovson Analytics • {{$json.signal_date}}\"\n  }\n}]"
             }
           ]
-        },
-        "options": {}
+        }
       },
-      "id": "76162594-5555-4444-8888-000000000004",
+      "id": "4",
       "name": "Send to Discord",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
@@ -72,16 +77,22 @@
     },
     {
       "parameters": {
-        "command": "=sqlite3 /home/daniel/sovson-analytics/data/sovson_analytics.db \"UPDATE signals SET discord_message_id = 'SENT' WHERE id = {{$json.id}};\""
+        "operation": "executeQuery",
+        "query": "=UPDATE signals SET discord_message_id = 'SENT' WHERE id = {{$json.id}};"
       },
-      "id": "76162594-5555-4444-8888-000000000005",
+      "id": "5",
       "name": "Mark as Notified",
-      "type": "n8n-nodes-base.executeCommand",
+      "type": "n8n-nodes-base.sqlite",
       "typeVersion": 1,
       "position": [
         1200,
         300
-      ]
+      ],
+      "credentials": {
+        "sqlite": {
+          "id": "sovson_db_cred"
+        }
+      }
     }
   ],
   "connections": {
@@ -129,6 +140,5 @@
         ]
       ]
     }
-  },
-  "settings": {}
+  }
 }
