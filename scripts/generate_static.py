@@ -51,36 +51,38 @@ def generate_static_graph(ticker='AAPL'):
     mdf.sort_index(inplace=True)
 
     # Prepare Signal Markers
-    # We create a series of NaNs and fill only the signal points
-    buy_signals = pd.Series(float('nan'), index=df.index)
-    sell_signals = pd.Series(float('nan'), index=df.index)
+    # We create separate series for each phase
+    signals = {
+        'BUY':              {'series': pd.Series(float('nan'), index=df.index), 'color': '#2ecc71', 'marker': '^', 'label': 'BUY'},
+        'APPROACHING_BUY':  {'series': pd.Series(float('nan'), index=df.index), 'color': '#2ecc71', 'marker': 'o', 'label': 'APRCH BUY'},
+        'SELL':             {'series': pd.Series(float('nan'), index=df.index), 'color': '#e74c3c', 'marker': 'v', 'label': 'SELL'},
+        'APPROACHING_SELL': {'series': pd.Series(float('nan'), index=df.index), 'color': '#e74c3c', 'marker': 'o', 'label': 'APRCH SELL'}
+    }
 
-    has_buy = False
-    has_sell = False
     for _, row in sdf.iterrows():
         dt = pd.to_datetime(row['signal_date'])
-        if dt in df.index:
-            if 'BUY' in row['signal_type']:
-                buy_signals.loc[dt] = df.loc[dt, 'Low'] * 0.98
-                has_buy = True
+        stype = row['signal_type']
+        if dt in df.index and stype in signals:
+            if 'BUY' in stype:
+                signals[stype]['series'].loc[dt] = df.loc[dt, 'Low'] * 0.98
             else:
-                sell_signals.loc[dt] = df.loc[dt, 'High'] * 1.02
-                has_sell = True
+                signals[stype]['series'].loc[dt] = df.loc[dt, 'High'] * 1.02
 
     # Add-on plots
     # Create histogram colors: green for positive, red for negative
     hist_colors = ['#26a69a' if val >= 0 else '#ef5350' for val in mdf['histogram']]
 
     apds = [
-        mpf.make_addplot(mdf['macd_line'], panel=1, color='dodgerblue', width=1, ylabel='MACD'),
-        mpf.make_addplot(mdf['signal_line'], panel=1, color='orange', width=1),
+        mpf.make_addplot(mdf['macd_line'], panel=1, color='dodgerblue', width=1, ylabel='MACD', label='MACD'),
+        mpf.make_addplot(mdf['signal_line'], panel=1, color='orange', width=1, label='Signal'),
         mpf.make_addplot(mdf['histogram'], panel=1, type='bar', color=hist_colors, alpha=0.8)
     ]
     
-    if has_buy:
-        apds.append(mpf.make_addplot(buy_signals, type='scatter', markersize=150, marker='^', color='#2ecc71'))
-    if has_sell:
-        apds.append(mpf.make_addplot(sell_signals, type='scatter', markersize=150, marker='v', color='#e74c3c'))
+    # Add scatter plots for each signal type that actually exists in this timeframe
+    for stype, cfg in signals.items():
+        if not cfg['series'].dropna().empty:
+            apds.append(mpf.make_addplot(cfg['series'], type='scatter', markersize=150 if cfg['marker'] != 'o' else 80, 
+                                        marker=cfg['marker'], color=cfg['color'], label=cfg['label']))
 
     # Plot
     s = mpf.make_mpf_style(base_mpf_style='charles', gridcolor='#2a2d3a', facecolor='#0f1117', edgecolor='#2a2d3a')
@@ -94,6 +96,31 @@ def generate_static_graph(ticker='AAPL'):
                    fontsize=80, color='white', alpha=0.07,
                    ha='center', va='center', weight='bold', zorder=0)
 
+    # Add Legend to the top panel
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], marker='^', color='w', label='BUY', markerfacecolor='#2ecc71', markersize=10),
+        Line2D([0], [0], marker='o', color='w', label='APRCH BUY', markerfacecolor='#2ecc71', markersize=8),
+        Line2D([0], [0], marker='v', color='w', label='SELL', markerfacecolor='#e74c3c', markersize=10),
+        Line2D([0], [0], marker='o', color='w', label='APRCH SELL', markerfacecolor='#e74c3c', markersize=8),
+    ]
+    # Use white text for the legend on dark background
+    leg = axlist[0].legend(handles=legend_elements, loc='upper left', fontsize=9, frameon=True, facecolor='#1a1d27', edgecolor='#2a2d3a')
+    for text in leg.get_texts():
+        text.set_color('white')
+
+    # Add Label and Legend to the MACD panel (usually axlist[2] when no volume)
+    # axlist mapping: [Main, [Secondary-Main?], Panel1, [Secondary-Panel1?]]
+    # Since we have only one panel, it's at index 2.
+    if len(axlist) >= 3:
+        macd_ax = axlist[2]
+        macd_ax.set_ylabel('MACD / Signal', color='white', fontsize=10)
+        # Adding a small legend for the MACD panel
+        macd_leg = macd_ax.legend(loc='upper left', fontsize=8, frameon=False)
+        if macd_leg:
+            for text in macd_leg.get_texts():
+                text.set_color('white')
+
     fig.savefig(output_path)
     plt.close(fig)
     
@@ -101,7 +128,7 @@ def generate_static_graph(ticker='AAPL'):
 
 if __name__ == "__main__":
     import sys
-    db_path = '/home/daniel/Mac-D-Alert/data/sovson_analytics.db'
+    db_path = '/home/daniel/sovson-analytics/data/sovson_analytics.db'
     conn = sqlite3.connect(db_path)
     if len(sys.argv) > 1:
         tickers = sys.argv[1:]

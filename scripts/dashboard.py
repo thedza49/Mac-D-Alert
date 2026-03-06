@@ -9,7 +9,7 @@ Simplified Flask dashboard to view ticker status and graphs.
 import sqlite3
 from pathlib import Path
 from datetime import date, timedelta
-from flask import Flask, render_template_string, send_from_directory
+from flask import Flask, render_template_string, send_from_directory, jsonify
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path("/home/daniel/Mac-D-Alert")
@@ -72,6 +72,19 @@ TEMPLATE = """
 <p class="subtitle">Updated: {{ now }}</p>
 
 <h2>Market Status & Backtesting</h2>
+<div style="background: #1a1d27; padding: 16px; border-radius: 8px; margin-bottom: 24px; font-size: 13px;">
+    <strong>Aggregate Performance (3y History)</strong>:
+    {% if aggregate_data %}
+        {% for a in aggregate_data %}
+            <span style="margin-right: 15px;">
+                {{ a.ticker }}: <span class="macd-pos">{{ "%.0f%%"|format(a.win_rate) }} Win Rate</span> 
+                (avg peak <span class="macd-pos">+{{ "%.1f%%"|format(a.avg_peak) }}</span>)
+            </span>
+        {% endfor %}
+    {% else %}
+        <span>Calculating history...</span>
+    {% endif %}
+</div>
 <table>
     <thead>
         <tr>
@@ -129,6 +142,17 @@ TEMPLATE = """
 @app.route("/")
 def index():
     conn = get_connection()
+    
+    # Aggregate Stats
+    aggregate_data = conn.execute("""
+        SELECT ticker, 
+               (SUM(CASE WHEN peak_gain_pct > 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) as win_rate,
+               AVG(peak_gain_pct) as avg_peak
+        FROM signals 
+        WHERE signal_type = 'BUY'
+        GROUP BY ticker
+    """).fetchall()
+
     # Market Status with Backtesting Scorecard
     status_data = conn.execute("""
         SELECT m.ticker, m.current_phase, m.period_end_date,
@@ -172,7 +196,38 @@ def index():
         d["analyst_calls"] = json.loads(d["recent_analyst_calls_json"]) if d.get("recent_analyst_calls_json") else []
         processed_data.append(d)
         
-    return render_template_string(TEMPLATE, status_data=processed_data, now=date.today().strftime("%B %d, %Y"))
+    return render_template_string(TEMPLATE, 
+                                  status_data=processed_data, 
+                                  aggregate_data=aggregate_data,
+                                  now=date.today().strftime("%B %d, %Y"))
+
+@app.route("/api/signals/unsent")
+def get_unsent_signals():
+    conn = get_connection()
+    # Fetch signals that haven't been sent to Discord yet
+    signals = conn.execute("""
+        SELECT s.id, s.ticker, s.signal_date, s.signal_type, s.price_at_signal, 
+               e.recent_analyst_calls_json,
+               (SELECT (SUM(CASE WHEN peak_gain_pct > 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
+                FROM signals WHERE ticker = s.ticker AND signal_type = 'BUY') as win_rate,
+               (SELECT AVG(peak_gain_pct) FROM signals WHERE ticker = s.ticker AND signal_type = 'BUY') as avg_peak
+        FROM signals s
+        LEFT JOIN earnings_data e ON e.ticker = s.ticker 
+             AND e.fetched_date = (SELECT MAX(fetched_date) FROM earnings_data WHERE ticker = s.ticker)
+        WHERE s.discord_message_id IS NULL
+        ORDER BY s.signal_date DESC
+    """).fetchall()
+    conn.close()
+    
+    return jsonify([dict(s) for s in signals])
+
+@app.route("/api/signals/mark-sent/<int:signal_id>", methods=["POST"])
+def mark_signal_sent(signal_id):
+    conn = get_connection()
+    conn.execute("UPDATE signals SET discord_message_id = 'SENT' WHERE id = ?", (signal_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "success"})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
