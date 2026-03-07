@@ -1,0 +1,49 @@
+{
+  "name": "Mac-D-Alert: Workflow B (The Engine)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "45 13 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Schedule (1:45 PM PST)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /home/daniel/Mac-D-Alert/scripts/calculate_macd.py && python3 /home/daniel/Mac-D-Alert/scripts/signal_detector.py"
+      },
+      "name": "Execute Logic",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule (1:45 PM PST)": {
+      "main": [
+        [
+          {
+            "node": "Execute Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

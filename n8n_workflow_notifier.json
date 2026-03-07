@@ -1,0 +1,131 @@
+{
+  "name": "Mac-D-Alert: Workflow C (Discord Notifier)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutes": 30
+            }
+          ]
+        }
+      },
+      "name": "Every 30 Mins",
+      "type": "n8n-nodes-base.interval",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5000/api/signals/unsent",
+        "options": {}
+      },
+      "name": "Fetch Unsent Signals",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "return items[0].json.map(signal => ({ json: signal }));"
+      },
+      "name": "Split Signals",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "bodyParametersUi": {
+          "parameter": [
+            {
+              "name": "content",
+              "value": "=🚨 **{{$node[\"Split Signals\"].json[\"ticker\"]}} {{$node[\"Split Signals\"].json[\"signal_type\"]}}** Detected!\n💰 Price: **${{$node[\"Split Signals\"].json[\"price_at_signal\"]}}**\n📊 Win Rate: **{{$node[\"Split Signals\"].json[\"win_rate\"].toFixed(0)}}%**\n📈 Avg Peak: **+{{$node[\"Split Signals\"].json[\"avg_peak\"].toFixed(1)}}%**\n🔗 [View Graph](http://raspberrypi.local:5000/static/graph_{{$node[\"Split Signals\"].json[\"ticker\"]}}.png)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Send Discord Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        550,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:5000/api/signals/mark-sent/{{$node[\"Split Signals\"].json[\"id\"]}}",
+        "options": {}
+      },
+      "name": "Mark Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        700,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Every 30 Mins": {
+      "main": [
+        [
+          {
+            "node": "Fetch Unsent Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Unsent Signals": {
+      "main": [
+        [
+          {
+            "node": "Split Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Signals": {
+      "main": [
+        [
+          {
+            "node": "Send Discord Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Discord Webhook": {
+      "main": [
+        [
+          {
+            "node": "Mark Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

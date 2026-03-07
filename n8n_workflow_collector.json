@@ -1,0 +1,49 @@
+{
+  "name": "Mac-D-Alert: Workflow A (The Collector)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 13 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Schedule (1:30 PM PST)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "command": "python3 /home/daniel/Mac-D-Alert/scripts/fetch_prices.py && python3 /home/daniel/Mac-D-Alert/scripts/fetch_earnings.py"
+      },
+      "name": "Execute Fetchers",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        450,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule (1:30 PM PST)": {
+      "main": [
+        [
+          {
+            "node": "Execute Fetchers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
