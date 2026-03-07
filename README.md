@@ -27,40 +27,34 @@ Every signal is scored (0-100) based on:
 -   **Analyst Sentiment**: Real-time integration with buy/sell ratios and price targets.
 -   **Earnings Safety**: Penalizes signals occurring immediately before earnings calls.
 
-## 🚀 Setup & Installation
+## 🚀 Simple Setup Guide (Non-Coders)
 
-### Prerequisites
-- Python 3.11+
-- n8n (installed on host)
-- SQLite3
-
-### 1. Clone & Install Dependencies
+### 1. Install the "Brain"
+If you are on your Raspberry Pi, run this command to make sure you have all the necessary tools installed:
 ```bash
-git clone https://github.com/thedza49/Mac-D-Alert.git
-cd Mac-D-Alert
+cd ~/Mac-D-Alert
 pip install -r requirements.txt
 ```
 
-### 2. Database Initialization
-```bash
-python3 scripts/setup_database.py
-```
-
-### 3. n8n Integration
-Import the provided workflow templates into your n8n instance:
-- `n8n_workflow_collector.json`: Daily data fetching.
-- `n8n_workflow_engine.json`: Signal processing & math.
-- `n8n_workflow_notifier.json`: Discord alerts & API polling.
-
-### 4. Dashboard Service
-Enable the dashboard as a system service (recommended for Pi):
+### 2. Set Up the Dashboard
+This lets you see your graphs at `http://raspberrypi.local:5000`.
 ```bash
 sudo cp macd-dashboard.service /etc/systemd/system/
 sudo systemctl enable --now macd-dashboard.service
 ```
 
-## 📈 Public API & Webhook
-The dashboard exposes a simple API at `/api/signals/unsent` for custom integrations with other notification services.
+### 3. Install n8n Workflows (Automated Tasks)
+You don't need to write any code here. Just import the "Workflows" into your n8n dashboard:
+
+1.  **Open n8n** in your browser.
+2.  Click **Workflows** > **Add Workflow**.
+3.  Click the **three dots (⋮)** in the top right and select **Import from File**.
+4.  Upload the three files found in the `Mac-D-Alert` folder:
+    *   `n8n_workflow_collector.json` (Grabs the daily data)
+    *   `n8n_workflow_engine.json` (Calculates the signals)
+    *   `n8n_workflow_notifier.json` (Sends Discord alerts)
+5.  **Important**: In the "Discord Notifier" workflow, double-click the **Send Discord Webhook** node and paste your Discord Webhook URL into the **URL** field.
+6.  Click **Save** and turn the toggle to **Active**.
 
 ---
 *Developed for Daniel (Sovson Analytics) by Nia @ OpenClaw.*
