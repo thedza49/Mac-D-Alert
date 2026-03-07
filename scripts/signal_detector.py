@@ -52,6 +52,7 @@ log = logging.getLogger(__name__)
 
 # ── Thresholds ────────────────────────────────────────────────────────────────
 APPROACHING_DAYS_THRESHOLD = 3    # crossover must be within this many days
+APPROACHING_PRICE_GAP      = 0.005  # gap must be < 0.5% of price
 CONVERGENCE_LOOKBACK       = 3    # days to average for closing speed
 DUPLICATE_LOOKBACK_DAYS    = 3    # suppress same phase within this window
 BACKTEST_YEARS             = 3    # history scan depth
@@ -68,6 +69,7 @@ SCORE_UPSIDE_STRONG       = 10   # upside_to_target_pct > 15%
 SCORE_VOLUME_ABOVE_AVG    = 10   # volume > 20-day average
 SCORE_EARNINGS_SAFE       = 10   # earnings > 14 days away
 SCORE_ABOVE_50MA          = 5    # price above 50-day MA
+SCORE_HEIKIN_CONFIRM      = 15   # Heikin Ashi candle is strong
 PENALTY_EARNINGS_IMMINENT = -15  # earnings within 7 days
 
 
@@ -97,7 +99,7 @@ def get_recent_macd(conn: sqlite3.Connection, ticker: str, days: int = 5, end_da
     rows = conn.execute(
         """
         SELECT period_end_date, macd_line, signal_line, histogram,
-               volume_5d_avg, ma_50d
+               volume_5d_avg, ma_50d, current_phase
         FROM macd_5d_data
         WHERE ticker = ? AND period_end_date <= ?
         ORDER BY period_end_date DESC
@@ -114,21 +116,14 @@ def get_latest_price(conn: sqlite3.Connection, ticker: str, date_str: str = None
     
     row = conn.execute(
         """
-        SELECT close, volume, ma_50d, volume_5d_avg
-        FROM daily_prices dp
-        LEFT JOIN (
-            SELECT ticker, AVG(volume) as vol_20d_avg
-            FROM (
-                SELECT ticker, volume FROM daily_prices
-                WHERE ticker = ? AND date <= ?
-                ORDER BY date DESC LIMIT 20
-            )
-        ) va ON va.ticker = dp.ticker
-        WHERE dp.ticker = ? AND dp.date <= ?
-        ORDER BY dp.date DESC
+        SELECT close, volume, ma_50d, volume_5d_avg, 
+               ha_open, ha_high, ha_low, ha_close
+        FROM daily_prices
+        WHERE ticker = ? AND date <= ?
+        ORDER BY date DESC
         LIMIT 1
         """,
-        (ticker, date_str, ticker, date_str),
+        (ticker, date_str),
     ).fetchone()
     return dict(row) if row else None
 
@@ -190,9 +185,10 @@ def get_latest_earnings(conn: sqlite3.Connection, ticker: str) -> dict | None:
 
 # ── Signal detection logic ────────────────────────────────────────────────────
 
-def detect_phase(macd_rows: list[dict]) -> str:
+def detect_phase(macd_rows: list[dict], price_data: dict | None) -> str:
     """
     Determines the current signal phase using rate-of-convergence logic.
+    Optionally confirms with Heikin Ashi trend.
 
     Requires at least 2 rows. Uses up to last 3 rows for convergence speed.
     Returns one of: BUY, APPROACHING_BUY, SELL, APPROACHING_SELL, NEUTRAL.
@@ -211,21 +207,38 @@ def detect_phase(macd_rows: list[dict]) -> str:
     gap_today = macd_today - signal_today   # positive = MACD above signal
     gap_prev  = macd_prev  - signal_prev
 
+    # ── Heikin Ashi trend detection ───────────────────────────────────────────
+    is_ha_bullish = False
+    is_ha_bearish = False
+    if price_data and "ha_open" in price_data and "ha_close" in price_data:
+        ha_open  = price_data["ha_open"]
+        ha_close = price_data["ha_close"]
+        if ha_close > ha_open:
+            is_ha_bullish = True
+        elif ha_close < ha_open:
+            is_ha_bearish = True
+
     # ── Crossover detection (highest priority) ────────────────────────────────
     if gap_prev < 0 and gap_today >= 0:
-        return "BUY"
+        # Require bullish Heikin Ashi confirmation for BUY
+        return "BUY" if is_ha_bullish else "NEUTRAL"
     if gap_prev > 0 and gap_today <= 0:
-        return "SELL"
+        # Require bearish Heikin Ashi confirmation for SELL
+        return "SELL" if is_ha_bearish else "NEUTRAL"
 
     # ── Rate-of-convergence for APPROACHING ───────────────────────────────────
+    # Only consider APPROACHING if the gap is closing and Heikin Ashi confirms
+    if gap_today < 0 and not is_ha_bullish:
+        return "NEUTRAL"
+    if gap_today > 0 and not is_ha_bearish:
+        return "NEUTRAL"
+
     # Build list of historical gaps (oldest to newest, up to lookback)
     gaps = []
     for row in macd_rows:
         gaps.append(row["macd_line"] - row["signal_line"])
 
     # Daily closing speeds over the available lookback window
-    # closing speed = how much the absolute gap shrank each day
-    # positive closing speed = gap shrinking (converging)
     closing_speeds = []
     for i in range(1, len(gaps)):
         speed = abs(gaps[i - 1]) - abs(gaps[i])   # positive = converging
@@ -244,11 +257,15 @@ def detect_phase(macd_rows: list[dict]) -> str:
     current_gap_abs = abs(gap_today)
     days_to_cross   = current_gap_abs / avg_closing_speed
 
-    if days_to_cross <= APPROACHING_DAYS_THRESHOLD:
+    # Additional threshold: Gap must be < 0.5% of price
+    price = price_data["close"] if price_data else 1e9
+    gap_pct = current_gap_abs / price
+
+    if days_to_cross <= APPROACHING_DAYS_THRESHOLD and gap_pct <= APPROACHING_PRICE_GAP:
         if gap_today < 0:
-            return "APPROACHING_BUY"    # MACD below signal, closing fast
+            return "APPROACHING_BUY"
         if gap_today > 0:
-            return "APPROACHING_SELL"   # MACD above signal, closing fast
+            return "APPROACHING_SELL"
 
     return "NEUTRAL"
 
@@ -278,11 +295,28 @@ def score_signal(phase: str, earnings: dict | None, price_data: dict | None) -> 
         volume        = price_data.get("volume")
         volume_5d_avg = price_data.get("volume_5d_avg")
 
+        # ma_50d and volume_5d_avg from price_data or latest_macd
         if close and ma_50d and close > ma_50d:
             score += SCORE_ABOVE_50MA
         if volume and volume_5d_avg and volume_5d_avg > 0:
-            if volume > volume_5d_avg * 1.0:   # any above-average volume
+            if volume > volume_5d_avg * 1.0:
                 score += SCORE_VOLUME_ABOVE_AVG
+        
+        # Heikin Ashi strength (confirmation score)
+        ha_open  = price_data.get("ha_open")
+        ha_close = price_data.get("ha_close")
+        ha_low   = price_data.get("ha_low")
+        ha_high  = price_data.get("ha_high")
+        
+        if ha_open and ha_close:
+            # Strong Bullish: green + no lower wick
+            if phase in ["BUY", "APPROACHING_BUY"]:
+                if ha_close > ha_open and ha_low == ha_open:
+                    score += SCORE_HEIKIN_CONFIRM
+            # Strong Bearish: red + no upper wick
+            elif phase in ["SELL", "APPROACHING_SELL"]:
+                if ha_close < ha_open and ha_high == ha_open:
+                    score += SCORE_HEIKIN_CONFIRM
 
     return max(0, min(100, score))   # clamp 0-100
 
@@ -315,7 +349,10 @@ def process_ticker(conn: sqlite3.Connection, ticker: str, signal_date: str = Non
     if macd_rows[-1]["period_end_date"] != signal_date:
         return None
 
-    phase = detect_phase(macd_rows)
+    # Fetch supporting data for detection and scoring
+    price_data = get_latest_price(conn, ticker, signal_date)
+    
+    phase = detect_phase(macd_rows, price_data)
 
     if phase == "NEUTRAL":
         return None
@@ -324,9 +361,15 @@ def process_ticker(conn: sqlite3.Connection, ticker: str, signal_date: str = Non
     if already_signaled(conn, ticker, phase, signal_date):
         return None
 
-    # Pull supporting data for scoring
     earnings   = get_latest_earnings(conn, ticker)
-    price_data = get_latest_price(conn, ticker, signal_date)
+    
+    # Ensure price_data has indicators from MACD rows if missing
+    if price_data:
+        if not price_data.get("ma_50d"):
+            price_data["ma_50d"] = latest_macd.get("ma_50d")
+        if not price_data.get("volume_5d_avg"):
+            price_data["volume_5d_avg"] = latest_macd.get("volume_5d_avg")
+
     confidence = score_signal(phase, earnings, price_data)
 
     latest_macd = macd_rows[-1]
