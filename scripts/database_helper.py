@@ -54,4 +54,35 @@ def disable_ticker(ticker: str) -> None:
 
 
 if __name__ == "__main__":
-    print("Active tickers:", get_active_tickers())
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Manage stock tickers for Sovson Analytics.")
+    parser.add_index = parser.add_subparsers(dest="command", help="Command to run")
+
+    # List
+    parser_list = parser.add_index.add_parser("list", help="List all active tickers")
+
+    # Add
+    parser_add = parser.add_index.add_parser("add", help="Add a new ticker")
+    parser_add.add_argument("ticker", help="Stock ticker (e.g. TSLA)")
+    parser_add.add_argument("--name", help="Company name")
+    parser_add.add_argument("--notes", help="Notes about this ticker")
+
+    # Disable
+    parser_disable = parser.add_index.add_parser("disable", help="Disable a ticker")
+    parser_disable.add_argument("ticker", help="Stock ticker to disable")
+
+    args = parser.parse_args()
+
+    if args.command == "list" or not args.command:
+        tickers = get_active_tickers()
+        print(f"\n--- Active Tickers ({len(tickers)}) ---")
+        for t in tickers:
+            print(f"{t['ticker']}: {t['name'] or 'N/A'}")
+        print("")
+    elif args.command == "add":
+        add_ticker(args.ticker, args.name, args.notes)
+        print(f"Ticker {args.ticker.upper()} added/enabled.")
+    elif args.command == "disable":
+        disable_ticker(args.ticker)
+        print(f"Ticker {args.ticker.upper()} disabled.")
