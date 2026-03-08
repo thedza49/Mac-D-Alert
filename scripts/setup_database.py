@@ -4,7 +4,8 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path('/home/daniel/sovson-analytics/data/sovson_analytics.db')
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = BASE_DIR / 'data' / 'sovson_analytics.db'
 
 
 def create_database() -> None:
@@ -21,6 +22,12 @@ def create_database() -> None:
         added_date DATE,
         notes TEXT
     );
+
+    -- Seed initial tickers
+    INSERT OR IGNORE INTO tickers (ticker, name, active, added_date) VALUES ('AAPL', 'Apple Inc.', 1, date('now'));
+    INSERT OR IGNORE INTO tickers (ticker, name, active, added_date) VALUES ('META', 'Meta Platforms, Inc.', 1, date('now'));
+    INSERT OR IGNORE INTO tickers (ticker, name, active, added_date) VALUES ('MSFT', 'Microsoft Corporation', 1, date('now'));
+    INSERT OR IGNORE INTO tickers (ticker, name, active, added_date) VALUES ('NVDA', 'NVIDIA Corporation', 1, date('now'));
 
     CREATE TABLE IF NOT EXISTS daily_prices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,6 +84,7 @@ def create_database() -> None:
         forward_pe REAL,
         sector_avg_pe REAL,
         last_4_quarters_json TEXT,
+        recent_analyst_calls_json TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(ticker, fetched_date)
     );

@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "command": "python3 /home/daniel/Mac-D-Alert/scripts/fetch_prices.py && python3 /home/daniel/Mac-D-Alert/scripts/fetch_earnings.py"
+        "command": "cd ~/Mac-D-Alert && python3 scripts/fetch_prices.py && python3 scripts/fetch_earnings.py"
       },
       "name": "Execute Fetchers",
       "type": "n8n-nodes-base.executeCommand",

@@ -30,10 +30,11 @@ Every signal is scored (0-100) based on:
 ## 🚀 Simple Setup Guide (Non-Coders)
 
 ### 1. Install the "Brain"
-If you are on your Raspberry Pi, run this command to make sure you have all the necessary tools installed:
+If you are on your Raspberry Pi, run these commands to install dependencies and initialize your database:
 ```bash
 cd ~/Mac-D-Alert
 pip install -r requirements.txt
+python3 scripts/setup_database.py
 ```
 
 ### 2. Set Up the Dashboard
@@ -53,7 +54,7 @@ You don't need to write any code here. Just import the "Workflows" into your n8n
     *   `n8n_workflow_collector.json` (Grabs the daily data)
     *   `n8n_workflow_engine.json` (Calculates the signals)
     *   `n8n_workflow_notifier.json` (Sends Discord alerts)
-5.  **Important**: In the "Discord Notifier" workflow, double-click the **Send Discord Webhook** node and paste your Discord Webhook URL into the **URL** field.
+5.  **Important**: Set an environment variable in n8n named `DISCORD_WEBHOOK_URL` with your Discord Webhook URL. The "Discord Notifier" workflow is pre-configured to use this variable.
 6.  Click **Save** and turn the toggle to **Active**.
 
 ---
