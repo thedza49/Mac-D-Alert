@@ -12,8 +12,8 @@ from datetime import date, timedelta
 from flask import Flask, render_template_string, send_from_directory, jsonify
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-BASE_DIR = Path("/home/daniel/Mac-D-Alert")
-DB_PATH  = Path("/home/daniel/sovson-analytics/data/sovson_analytics.db")
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH  = BASE_DIR / "data" / "sovson_analytics.db"
 STATIC_DIR = BASE_DIR / "scripts" / "static"
 
 app = Flask(__name__)
@@ -173,11 +173,15 @@ def index():
             SELECT MAX(date) FROM daily_prices WHERE ticker = m.ticker AND date < m.period_end_date
         )
         LEFT JOIN (
-            SELECT ticker, gain_1w_pct, gain_2w_pct, peak_gain_pct, days_to_peak, exit_gain_pct
-            FROM signals
-            WHERE signal_type = 'BUY'
-            GROUP BY ticker
-            HAVING MAX(signal_date)
+            SELECT s1.ticker, s1.gain_1w_pct, s1.gain_2w_pct, s1.peak_gain_pct, s1.days_to_peak, s1.exit_gain_pct
+            FROM signals s1
+            JOIN (
+                SELECT ticker, MAX(signal_date) as max_date
+                FROM signals
+                WHERE signal_type = 'BUY'
+                GROUP BY ticker
+            ) s2 ON s1.ticker = s2.ticker AND s1.signal_date = s2.max_date
+            WHERE s1.signal_type = 'BUY'
         ) s ON s.ticker = m.ticker
         LEFT JOIN (
             SELECT ticker, recent_analyst_calls_json

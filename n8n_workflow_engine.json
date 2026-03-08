@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "command": "python3 /home/daniel/Mac-D-Alert/scripts/calculate_macd.py && python3 /home/daniel/Mac-D-Alert/scripts/signal_detector.py"
+        "command": "cd ~/Mac-D-Alert && python3 scripts/calculate_macd.py && python3 scripts/signal_detector.py"
       },
       "name": "Execute Logic",
       "type": "n8n-nodes-base.executeCommand",

@@ -6,7 +6,8 @@ import sqlite3
 from pathlib import Path
 from typing import List, Dict, Optional
 
-DB_PATH = Path("/home/daniel/sovson-analytics/data/sovson_analytics.db")
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = BASE_DIR / "data" / "sovson_analytics.db"
 
 
 def get_connection() -> sqlite3.Connection:

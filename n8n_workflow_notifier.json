@@ -48,7 +48,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "YOUR_DISCORD_WEBHOOK_URL_HERE",
+        "url": "={{$env[\"DISCORD_WEBHOOK_URL\"]}}",
         "bodyParametersUi": {
           "parameter": [
             {

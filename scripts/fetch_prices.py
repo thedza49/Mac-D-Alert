@@ -25,7 +25,8 @@ import pandas as pd
 from yahooquery import Ticker
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-BASE_DIR = Path("/home/daniel/sovson-analytics")
+# Using relative paths so it works on any computer
+BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH  = BASE_DIR / "data" / "sovson_analytics.db"
 LOG_DIR  = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -47,6 +48,7 @@ def fetch_yahooquery(ticker: str) -> pd.DataFrame | None:
     """
     try:
         t = Ticker(ticker)
+        # Period 3y to ensure we always have enough data for 3 years of signals
         df = t.history(period="3y", interval="1d")
         if df is None or df.empty:
             log.warning(f"{ticker}: No data returned from yahooquery")
@@ -122,8 +124,6 @@ def upsert_prices(conn: sqlite3.Connection, ticker: str, df: pd.DataFrame) -> in
     for date, row in df.iterrows():
         # Handle date index which might be datetime or string
         date_str = date.strftime("%Y-%m-%d") if hasattr(date, "strftime") else str(date)
-        if date_str == '2026-02-27':
-            log.info(f"DEBUG: Processing {ticker} date: {date_str} (type: {type(date)})")
         cur.execute(
             """
             INSERT INTO daily_prices

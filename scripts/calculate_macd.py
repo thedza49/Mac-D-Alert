@@ -29,7 +29,7 @@ import pandas as pd
 import numpy as np
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-BASE_DIR = Path("/home/daniel/sovson-analytics")
+BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH  = BASE_DIR / "data" / "sovson_analytics.db"
 LOG_DIR  = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -237,10 +237,6 @@ def process_ticker(conn: sqlite3.Connection, ticker: str) -> int:
         start_idx = max(0, i - 4)
         period_start = indices[start_idx].strftime("%Y-%m-%d")
         period_end   = idx.strftime("%Y-%m-%d")
-
-        # DEBUG: print values
-        if period_end == '2026-02-27':
-            log.info(f"DEBUG {ticker}: upserting period_end={period_end}")
 
         upsert_macd_row(conn, ticker, {
             "calculation_date": period_end,
