@@ -4,12 +4,14 @@ dashboard.py
 Sovson Analytics - Web Dashboard
 
 Simplified Flask dashboard to view ticker status and graphs.
+Added Ticker Management (Add/Remove).
 """
 
 import sqlite3
+import json
 from pathlib import Path
-from datetime import date, timedelta
-from flask import Flask, render_template_string, send_from_directory, jsonify
+from datetime import date, datetime
+from flask import Flask, render_template_string, send_from_directory, jsonify, request, redirect, url_for
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,7 +47,10 @@ TEMPLATE = """
         h1 { font-size: 22px; font-weight: 600; color: #ffffff; margin-bottom: 4px; }
         .subtitle { font-size: 13px; color: #666; margin-bottom: 28px; }
         h2 { font-size: 14px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.08em; margin: 28px 0 12px; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+        
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
         thead th {
             text-align: left; padding: 8px 12px; background: #1a1d27; color: #888;
             font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;
@@ -53,87 +58,137 @@ TEMPLATE = """
         }
         tbody tr { border-bottom: 1px solid #1e2130; }
         tbody td { padding: 10px 12px; vertical-align: middle; }
+        
         .badge { display: inline-block; padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
         .badge-BUY { background: #0d3320; color: #2ecc71; }
         .badge-APPROACHING_BUY { background: #1a3520; color: #7dcea0; }
         .badge-SELL { background: #3d0d0d; color: #e74c3c; }
         .badge-NEUTRAL { background: #1e2130; color: #666; }
+        
         .macd-pos { color: #2ecc71; }
         .macd-neg { color: #e74c3c; }
         .backtest-score { font-size: 11px; color: #888; }
         .analyst-feed { font-size: 11px; color: #aaa; margin-top: 4px; }
         .analyst-item { border-left: 2px solid #5dade2; padding-left: 6px; margin-bottom: 4px; }
+        
+        .management-box {
+            background: #1a1d27; padding: 20px; border-radius: 8px; margin-bottom: 32px;
+            border: 1px solid #2a2d3a;
+        }
+        .form-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        input[type="text"] {
+            background: #0f1117; border: 1px solid #3d4255; color: #fff;
+            padding: 8px 12px; border-radius: 4px; font-size: 13px; outline: none;
+        }
+        input[type="text"]:focus { border-color: #5dade2; }
+        button {
+            background: #5dade2; color: #fff; border: none; padding: 8px 16px;
+            border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        button:hover { background: #3498db; }
+        .btn-remove { background: #3d0d0d; color: #e74c3c; padding: 4px 8px; font-size: 11px; margin-left: 10px; }
+        .btn-remove:hover { background: #c0392b; color: #fff; }
+        
+        .ticker-pill {
+            display: inline-flex; align-items: center; background: #2a2d3a; 
+            padding: 4px 10px; border-radius: 100px; margin-right: 8px; margin-bottom: 8px;
+            font-size: 12px; font-weight: 500;
+        }
+        
         .refresh { font-size: 12px; color: #555; margin-top: 24px; }
         .refresh a { color: #5dade2; text-decoration: none; }
     </style>
 </head>
 <body>
-<h1>Sovson Analytics</h1>
-<p class="subtitle">Updated: {{ now }}</p>
+<div class="container">
+    <h1>Sovson Analytics</h1>
+    <p class="subtitle">Updated: {{ now }}</p>
 
-<h2>Market Status & Backtesting</h2>
-<div style="background: #1a1d27; padding: 16px; border-radius: 8px; margin-bottom: 24px; font-size: 13px;">
-    <strong>Aggregate Performance (3y History)</strong>:
-    {% if aggregate_data %}
-        {% for a in aggregate_data %}
-            <span style="margin-right: 15px;">
-                {{ a.ticker }}: <span class="macd-pos">{{ "%.0f%%"|format(a.win_rate) }} Win Rate</span> 
-                (avg peak <span class="macd-pos">+{{ "%.1f%%"|format(a.avg_peak) }}</span>)
-            </span>
-        {% endfor %}
-    {% else %}
-        <span>Calculating history...</span>
-    {% endif %}
-</div>
-<table>
-    <thead>
-        <tr>
-            <th>Ticker</th>
-            <th>Price</th>
-            <th>Backtesting (1w / 3w / Peak / Exit)</th>
-            <th>Recent Analyst Sentiment</th>
-            <th>Phase</th>
-            <th>Graph</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% if status_data %}
-            {% for m in status_data %}
-            <tr>
-                <td><strong>{{ m.ticker }}</strong><br><span style="font-size: 10px; color: #555;">{{ m.period_end_date }}</span></td>
-                <td>{{ "$%.2f"|format(m.current_price) if m.current_price else '—' }}<br>
-                    <span class="{{ 'macd-pos' if m.pct_change and m.pct_change > 0 else 'macd-neg' }}" style="font-size: 11px;">
-                        {{ "%+.2f%%"|format(m.pct_change) if m.pct_change else '—' }}
-                    </span>
-                </td>
-                <td class="backtest-score">
-                    1w: <span class="{{ 'macd-pos' if m.gain_1w_pct and m.gain_1w_pct > 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(m.gain_1w_pct) if m.gain_1w_pct else '—' }}</span> |
-                    3w: <span class="{{ 'macd-pos' if m.gain_3w_pct and m.gain_3w_pct > 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(m.gain_3w_pct) if m.gain_3w_pct else '—' }}</span><br>
-                    Peak: <span class="macd-pos">{{ "%+.1f%%"|format(m.peak_gain_pct) if m.peak_gain_pct else '—' }}</span> ({{ m.days_to_peak }}d) |
-                    Exit: <span class="{{ 'macd-pos' if m.exit_gain_pct and m.exit_gain_pct > 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(m.exit_gain_pct) if m.exit_gain_pct else '—' }}</span>
-                </td>
-                <td>
-                    <div class="analyst-feed">
-                    {% for c in m.analyst_calls %}
-                        <div class="analyst-item">
-                            <strong>{{ c.firm }}</strong>: {{ c.action }} ({{ "$%.0f"|format(c.target) if c.target else 'N/A' }})
-                        </div>
-                    {% endfor %}
-                    </div>
-                </td>
-                <td><span class="badge badge-{{ m.current_phase or 'NEUTRAL' }}">
-                    {{ (m.current_phase or 'NEUTRAL').replace('_', ' ') }}
-                </span></td>
-                <td><a href="/static/graph_{{ m.ticker }}.png" target="_blank" style="color: #5dade2;">View Graph</a></td>
-            </tr>
+    <!-- Ticker Management Section -->
+    <h2>Ticker Management</h2>
+    <div class="management-box">
+        <form action="/api/tickers/add" method="POST" class="form-group">
+            <input type="text" name="ticker" placeholder="Enter Ticker (e.g. TSLA)" required style="text-transform: uppercase;">
+            <button type="submit">Add Ticker</button>
+        </form>
+        <div style="margin-top: 15px;">
+            <p style="font-size: 11px; color: #666; margin-bottom: 10px; text-transform: uppercase;">Currently Tracking:</p>
+            {% for t in all_tickers %}
+                <div class="ticker-pill">
+                    {{ t.ticker }}
+                    <form action="/api/tickers/remove/{{ t.ticker }}" method="POST" style="display:inline;">
+                        <button type="submit" class="btn-remove">×</button>
+                    </form>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <h2>Market Status & Backtesting</h2>
+    <div style="background: #1a1d27; padding: 16px; border-radius: 8px; margin-bottom: 24px; font-size: 13px; border: 1px solid #2a2d3a;">
+        <strong>Aggregate Performance (3y History)</strong>:
+        {% if aggregate_data %}
+            {% for a in aggregate_data %}
+                <span style="margin-right: 15px;">
+                    {{ a.ticker }}: <span class="macd-pos">{{ "%.0f%%"|format(a.win_rate) }} Win Rate</span> 
+                    (avg peak <span class="macd-pos">+{{ "%.1f%%"|format(a.avg_peak) }}</span>)
+                </span>
             {% endfor %}
         {% else %}
-            <tr><td colspan="6">No data found.</td></tr>
+            <span>Calculating history...</span>
         {% endif %}
-    </tbody>
-</table>
+    </div>
 
-<p class="refresh">Auto-refreshes every 5 min · <a href="/">Refresh now</a></p>
+    <table>
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Price</th>
+                <th>Backtesting (1w / 3w / Peak / Exit)</th>
+                <th>Recent Analyst Sentiment</th>
+                <th>Phase</th>
+                <th>Graph</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if status_data %}
+                {% for m in status_data %}
+                <tr>
+                    <td><strong>{{ m.ticker }}</strong><br><span style="font-size: 10px; color: #555;">{{ m.period_end_date }}</span></td>
+                    <td>{{ "$%.2f"|format(m.current_price) if m.current_price else '—' }}<br>
+                        <span class="{{ 'macd-pos' if m.pct_change and m.pct_change > 0 else 'macd-neg' }}" style="font-size: 11px;">
+                            {{ "%+.2f%%"|format(m.pct_change) if m.pct_change else '—' }}
+                        </span>
+                    </td>
+                    <td class="backtest-score">
+                        1w: <span class="{{ 'macd-pos' if m.gain_1w_pct and m.gain_1w_pct > 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(m.gain_1w_pct) if m.gain_1w_pct else '—' }}</span> |
+                        3w: <span class="{{ 'macd-pos' if m.gain_3w_pct and m.gain_3w_pct > 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(m.gain_3w_pct) if m.gain_3w_pct else '—' }}</span><br>
+                        Peak: <span class="macd-pos">{{ "%+.1f%%"|format(m.peak_gain_pct) if m.peak_gain_pct else '—' }}</span> ({{ m.days_to_peak }}d) |
+                        Exit: <span class="{{ 'macd-pos' if m.exit_gain_pct and m.exit_gain_pct > 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(m.exit_gain_pct) if m.exit_gain_pct else '—' }}</span>
+                    </td>
+                    <td>
+                        <div class="analyst-feed">
+                        {% for c in m.analyst_calls %}
+                            <div class="analyst-item">
+                                <strong>{{ c.firm }}</strong>: {{ c.action }} ({{ "$%.0f"|format(c.target) if c.target else 'N/A' }})
+                            </div>
+                        {% endfor %}
+                        </div>
+                    </td>
+                    <td><span class="badge badge-{{ m.current_phase or 'NEUTRAL' }}">
+                        {{ (m.current_phase or 'NEUTRAL').replace('_', ' ') }}
+                    </span></td>
+                    <td><a href="/static/graph_{{ m.ticker }}.png" target="_blank" style="color: #5dade2;">View Graph</a></td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr><td colspan="6">No data found.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    <p class="refresh">Auto-refreshes every 5 min · <a href="/">Refresh now</a></p>
+</div>
 <script>setTimeout(() => location.reload(), 300000);</script>
 </body>
 </html>
@@ -143,6 +198,9 @@ TEMPLATE = """
 def index():
     conn = get_connection()
     
+    # All Active Tickers for Management
+    all_tickers = conn.execute("SELECT ticker FROM tickers WHERE active = 1 ORDER BY ticker").fetchall()
+
     # Aggregate Stats
     aggregate_data = conn.execute("""
         SELECT ticker, 
@@ -192,7 +250,7 @@ def index():
         ORDER BY m.ticker
     """).fetchall()
     conn.close()
-    import json
+
     # Convert analyst json to list for template
     processed_data = []
     for r in status_data:
@@ -203,12 +261,43 @@ def index():
     return render_template_string(TEMPLATE, 
                                   status_data=processed_data, 
                                   aggregate_data=aggregate_data,
-                                  now=date.today().strftime("%B %d, %Y"))
+                                  all_tickers=all_tickers,
+                                  now=datetime.now().strftime("%B %d, %Y %I:%M %p"))
+
+@app.route("/api/tickers/add", methods=["POST"])
+def add_ticker():
+    ticker = request.form.get("ticker", "").upper().strip()
+    if not ticker:
+        return redirect(url_for("index"))
+    
+    conn = get_connection()
+    try:
+        # Check if it exists but is inactive
+        existing = conn.execute("SELECT ticker FROM tickers WHERE ticker = ?", (ticker,)).fetchone()
+        if existing:
+            conn.execute("UPDATE tickers SET active = 1 WHERE ticker = ?", (ticker,))
+        else:
+            conn.execute("INSERT INTO tickers (ticker, active, added_date) VALUES (?, 1, ?)", 
+                         (ticker, date.today().isoformat()))
+        conn.commit()
+    except Exception as e:
+        print(f"Error adding ticker: {e}")
+    finally:
+        conn.close()
+    
+    return redirect(url_for("index"))
+
+@app.route("/api/tickers/remove/<ticker>", methods=["POST"])
+def remove_ticker(ticker):
+    conn = get_connection()
+    conn.execute("UPDATE tickers SET active = 0 WHERE ticker = ?", (ticker,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("index"))
 
 @app.route("/api/signals/unsent")
 def get_unsent_signals():
     conn = get_connection()
-    # Fetch signals that haven't been sent to Discord yet
     signals = conn.execute("""
         SELECT s.id, s.ticker, s.signal_date, s.signal_type, s.price_at_signal, 
                e.recent_analyst_calls_json,
@@ -222,7 +311,6 @@ def get_unsent_signals():
         ORDER BY s.signal_date DESC
     """).fetchall()
     conn.close()
-    
     return jsonify([dict(s) for s in signals])
 
 @app.route("/api/signals/mark-sent/<int:signal_id>", methods=["POST"])
