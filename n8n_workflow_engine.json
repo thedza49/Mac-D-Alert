@@ -18,19 +18,22 @@
       "position": [
         250,
         300
-      ]
+      ],
+      "id": "c037444e-980c-4900-9945-3a194922b30f"
     },
     {
       "parameters": {
-        "command": "cd ~/Mac-D-Alert && python3 scripts/calculate_macd.py && python3 scripts/signal_detector.py"
+        "method": "POST",
+        "url": "http://172.17.0.1:5001/run/engine"
       },
       "name": "Execute Logic",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
         450,
         300
-      ]
+      ],
+      "id": "7005b22f-ed76-4422-91f8-30a9abd42361"
     }
   ],
   "connections": {

@@ -3,11 +3,11 @@
   "nodes": [
     {
       "parameters": {
-        "rule": {
-          "interval": [
+        "triggerTimes": {
+          "item": [
             {
-              "field": "cronExpression",
-              "expression": "30 13 * * 1-5"
+              "hour": 13,
+              "minute": 30
             }
           ]
         }
@@ -16,21 +16,26 @@
       "type": "n8n-nodes-base.cron",
       "typeVersion": 1,
       "position": [
-        250,
-        300
-      ]
+        0,
+        0
+      ],
+      "id": "aa72beb1-e4da-44b6-a243-8ef7feb58f1d",
+      "retryOnFail": true,
+      "executeOnce": true
     },
     {
       "parameters": {
-        "command": "cd ~/Mac-D-Alert && python3 scripts/fetch_prices.py && python3 scripts/fetch_earnings.py"
+        "method": "POST",
+        "url": "http://172.17.0.1:5001/run/collector"
       },
       "name": "Execute Fetchers",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
       "position": [
-        450,
-        300
-      ]
+        208,
+        0
+      ],
+      "id": "1edf586f-3364-4584-acdc-efb4c988f6d9"
     }
   ],
   "connections": {
