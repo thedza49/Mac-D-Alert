@@ -17,14 +17,15 @@ The system is built to be "token-free" and reboot-resilient:
 -   **Orchestration**: native **n8n** workflows manage the daily schedule and inter-script dependencies.
 -   **Storage**: Lightweight **SQLite** database for price history, backtesting logs, and signal tracking.
 -   **Dashboard**: A local Flask-based web UI for visualizing stock graphs and historical win rates.
--   **Notifications**: Automated Discord alerts with deep-linked charts and confidence scores.
+-   **Enhanced Notifications**: Automated Discord alerts with native chart attachments, 3-signal backtesting history, and real-time analyst sentiment "freshness" (e.g., "4 days ago").
 
 ## 📊 Logic & Confidence Scoring
 
 Every signal is scored (0-100) based on:
 -   **MACD Gap Convergence**: Speed and distance to crossover.
 -   **HA Trend Strength**: Confirmation of bullish/bearish candle bodies.
--   **Analyst Sentiment**: Real-time integration with buy/sell ratios and price targets.
+-   **Analyst Sentiment (FMP v4)**: Real-time integration with firm-specific price targets and upside calculations.
+-   **Performance Backtesting**: Automatic calculation of 1-week, 3-week, and peak returns for every historical signal.
 -   **Earnings Safety**: Penalizes signals occurring immediately before earnings calls.
 
 ## 🚀 Simple Setup Guide (Non-Coders)

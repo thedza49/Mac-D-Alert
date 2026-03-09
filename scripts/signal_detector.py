@@ -154,14 +154,15 @@ def insert_signal(conn: sqlite3.Connection, signal: dict) -> None:
             ticker, signal_date, signal_type, price_at_signal,
             macd_line, signal_line, histogram,
             volume_vs_avg_pct, earnings_days_out, buy_ratio,
-            confidence_score
+            confidence_score, performance_history
         ) VALUES (
             :ticker, :signal_date, :signal_type, :price_at_signal,
             :macd_line, :signal_line, :histogram,
             :volume_vs_avg_pct, :earnings_days_out, :buy_ratio,
-            :confidence_score
+            :confidence_score, :performance_history
         )
-        ON CONFLICT(ticker, signal_date, signal_type) DO NOTHING
+        ON CONFLICT(ticker, signal_date, signal_type) DO UPDATE SET
+            performance_history = excluded.performance_history
         """,
         signal,
     )
@@ -184,6 +185,33 @@ def get_latest_earnings(conn: sqlite3.Connection, ticker: str) -> dict | None:
 
 
 # ── Signal detection logic ────────────────────────────────────────────────────
+
+def get_performance_history_string(conn: sqlite3.Connection, ticker: str, signal_type: str, signal_date: str) -> str:
+    """Fetches the last 3 historical signals of the same type and formats the history string."""
+    rows = conn.execute(
+        """
+        SELECT signal_date, gain_1w_pct, gain_2w_pct, peak_gain_pct, days_to_peak
+        FROM signals
+        WHERE ticker = ? AND signal_type = ? AND signal_date < ?
+        ORDER BY signal_date DESC
+        LIMIT 3
+        """,
+        (ticker, signal_type, signal_date)
+    ).fetchall()
+    
+    if not rows:
+        return "No recent signals of this type."
+    
+    entries = []
+    for r in rows:
+        gain_1w = f"+{r['gain_1w_pct']}%" if (r['gain_1w_pct'] is not None and r['gain_1w_pct'] >= 0) else f"{r['gain_1w_pct']}%" if r['gain_1w_pct'] is not None else "N/A"
+        gain_3w = f"+{r['gain_2w_pct']}%" if (r['gain_2w_pct'] is not None and r['gain_2w_pct'] >= 0) else f"{r['gain_2w_pct']}%" if r['gain_2w_pct'] is not None else "N/A"
+        peak = f"+{r['peak_gain_pct']}%" if (r['peak_gain_pct'] is not None and r['peak_gain_pct'] >= 0) else f"{r['peak_gain_pct']}%" if r['peak_gain_pct'] is not None else "N/A"
+        days = f"({r['days_to_peak']}d)" if r['days_to_peak'] is not None else ""
+        entries.append(f"• **{r['signal_date']}**: 1w: {gain_1w} | 3w: {gain_3w} | Peak: {peak} {days}")
+    
+    return "\n".join(entries)
+
 
 def detect_phase(macd_rows: list[dict], price_data: dict | None) -> str:
     """
@@ -363,6 +391,8 @@ def process_ticker(conn: sqlite3.Connection, ticker: str, signal_date: str = Non
 
     earnings   = get_latest_earnings(conn, ticker)
     
+    latest_macd = macd_rows[-1]
+
     # Ensure price_data has indicators from MACD rows if missing
     if price_data:
         if not price_data.get("ma_50d"):
@@ -372,8 +402,6 @@ def process_ticker(conn: sqlite3.Connection, ticker: str, signal_date: str = Non
 
     confidence = score_signal(phase, earnings, price_data)
 
-    latest_macd = macd_rows[-1]
-
     # Volume vs average
     vol_vs_avg = None
     if price_data:
@@ -381,6 +409,8 @@ def process_ticker(conn: sqlite3.Connection, ticker: str, signal_date: str = Non
         vavg = price_data.get("volume_5d_avg")
         if v and vavg and vavg > 0:
             vol_vs_avg = round(((v - vavg) / vavg) * 100, 2)
+
+    perf_history = get_performance_history_string(conn, ticker, phase, signal_date)
 
     signal = {
         "ticker":           ticker,
@@ -394,6 +424,7 @@ def process_ticker(conn: sqlite3.Connection, ticker: str, signal_date: str = Non
         "earnings_days_out": earnings["days_until_earnings"] if earnings else None,
         "buy_ratio":         earnings["buy_ratio"] if earnings else None,
         "confidence_score":  confidence,
+        "performance_history": perf_history,
     }
 
     insert_signal(conn, signal)

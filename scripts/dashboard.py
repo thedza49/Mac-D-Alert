@@ -3,14 +3,13 @@
 dashboard.py
 Sovson Analytics - Web Dashboard
 
-Simplified Flask dashboard to view ticker status and graphs.
-Added Ticker Management (Add/Remove).
+Tabbed Flask dashboard to view ticker status, Pi health, and System Memory.
 """
 
 import sqlite3
 import json
 from pathlib import Path
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from flask import Flask, render_template_string, send_from_directory, jsonify, request, redirect, url_for
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -36,6 +35,7 @@ TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sovson Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -44,12 +44,36 @@ TEMPLATE = """
             color: #e0e0e0;
             padding: 24px;
         }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
         h1 { font-size: 22px; font-weight: 600; color: #ffffff; margin-bottom: 4px; }
         .subtitle { font-size: 13px; color: #666; margin-bottom: 28px; }
         h2 { font-size: 14px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.08em; margin: 28px 0 12px; }
         
-        .container { max-width: 1200px; margin: 0 auto; }
+        /* Tabs */
+        .tabs {
+            display: flex; gap: 4px; border-bottom: 1px solid #2a2d3a; margin-bottom: 24px;
+        }
+        .tab {
+            padding: 10px 20px; cursor: pointer; border-radius: 8px 8px 0 0;
+            font-size: 14px; font-weight: 500; color: #888; transition: 0.2s;
+        }
+        .tab:hover { color: #fff; background: #1a1d27; }
+        .tab.active { color: #5dade2; background: #1a1d27; border-bottom: 2px solid #5dade2; }
         
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Health Grid */
+        .health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+        .health-card { background: #1a1d27; padding: 16px; border-radius: 8px; border: 1px solid #2a2d3a; }
+        .health-card p:first-child { font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 8px; }
+        .health-card p:last-child { font-size: 20px; font-weight: 600; }
+        
+        /* Charts */
+        .chart-container { background: #1a1d27; padding: 20px; border-radius: 8px; border: 1px solid #2a2d3a; margin-bottom: 24px; }
+        
+        /* Tables */
         table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
         thead th {
             text-align: left; padding: 8px 12px; background: #1a1d27; color: #888;
@@ -67,33 +91,26 @@ TEMPLATE = """
         
         .macd-pos { color: #2ecc71; }
         .macd-neg { color: #e74c3c; }
-        .backtest-score { font-size: 11px; color: #888; }
-        .analyst-feed { font-size: 11px; color: #aaa; margin-top: 4px; }
-        .analyst-item { border-left: 2px solid #5dade2; padding-left: 6px; margin-bottom: 4px; }
         
-        .management-box {
-            background: #1a1d27; padding: 20px; border-radius: 8px; margin-bottom: 32px;
-            border: 1px solid #2a2d3a;
-        }
+        .management-box { background: #1a1d27; padding: 20px; border-radius: 8px; margin-bottom: 32px; border: 1px solid #2a2d3a; }
         .form-group { display: flex; gap: 10px; margin-bottom: 15px; }
-        input[type="text"] {
-            background: #0f1117; border: 1px solid #3d4255; color: #fff;
-            padding: 8px 12px; border-radius: 4px; font-size: 13px; outline: none;
-        }
-        input[type="text"]:focus { border-color: #5dade2; }
-        button {
-            background: #5dade2; color: #fff; border: none; padding: 8px 16px;
-            border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer;
-        }
-        button:hover { background: #3498db; }
+        input[type="text"] { background: #0f1117; border: 1px solid #3d4255; color: #fff; padding: 8px 12px; border-radius: 4px; font-size: 13px; outline: none; }
+        button { background: #5dade2; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
         .btn-remove { background: #3d0d0d; color: #e74c3c; padding: 4px 8px; font-size: 11px; margin-left: 10px; }
-        .btn-remove:hover { background: #c0392b; color: #fff; }
+        .ticker-pill { display: inline-flex; align-items: center; background: #2a2d3a; padding: 4px 10px; border-radius: 100px; margin-right: 8px; margin-bottom: 8px; font-size: 12px; font-weight: 500; }
         
-        .ticker-pill {
-            display: inline-flex; align-items: center; background: #2a2d3a; 
-            padding: 4px 10px; border-radius: 100px; margin-right: 8px; margin-bottom: 8px;
-            font-size: 12px; font-weight: 500;
-        }
+        /* File Viewer */
+        .file-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 32px; }
+        .file-card { background: #1a1d27; padding: 16px; border-radius: 8px; border: 1px solid #2a2d3a; cursor: pointer; transition: 0.2s; }
+        .file-card:hover { border-color: #5dade2; background: #212532; }
+        .file-card h3 { font-size: 14px; margin-bottom: 6px; color: #fff; }
+        .file-card p { font-size: 12px; color: #666; line-height: 1.4; }
+        .file-type { font-size: 10px; text-transform: uppercase; color: #5dade2; margin-top: 8px; display: block; }
+        
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); }
+        .modal-content { background: #1a1d27; margin: 5% auto; padding: 20px; border-radius: 8px; width: 80%; max-width: 900px; height: 80%; display: flex; flex-direction: column; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .modal-body { flex-grow: 1; overflow-y: auto; background: #0f1117; padding: 15px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; font-size: 13px; color: #ccc; }
         
         .refresh { font-size: 12px; color: #555; margin-top: 24px; }
         .refresh a { color: #5dade2; text-decoration: none; }
@@ -104,15 +121,54 @@ TEMPLATE = """
     <h1>Sovson Analytics</h1>
     <p class="subtitle">Updated: {{ now }}</p>
 
-    <!-- Ticker Management Section -->
-    <h2>Ticker Management</h2>
-    <div class="management-box">
-        <form action="/api/tickers/add" method="POST" class="form-group">
-            <input type="text" name="ticker" placeholder="Enter Ticker (e.g. TSLA)" required style="text-transform: uppercase;">
-            <button type="submit">Add Ticker</button>
-        </form>
-        <div style="margin-top: 15px;">
-            <p style="font-size: 11px; color: #666; margin-bottom: 10px; text-transform: uppercase;">Currently Tracking:</p>
+    <div class="tabs">
+        <div class="tab active" onclick="showTab('market')">Market Analysis</div>
+        <div class="tab" onclick="showTab('health')">Pi Health</div>
+        <div class="tab" onclick="showTab('system')">System Memory</div>
+    </div>
+
+    <!-- Market Analysis Tab -->
+    <div id="market" class="tab-content active">
+        <h2>Market Status & Signals</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th>Backtesting</th>
+                    <th>Analyst Sentiment</th>
+                    <th>Phase</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in status_data %}
+                <tr>
+                    <td><strong>{{ m.ticker }}</strong></td>
+                    <td>{{ "$%.2f"|format(m.current_price) if m.current_price else '—' }}<br>
+                        <span class="{{ 'macd-pos' if m.pct_change and m.pct_change > 0 else 'macd-neg' }}" style="font-size: 11px;">
+                            {{ "%+.2f%%"|format(m.pct_change) if m.pct_change else '—' }}
+                        </span>
+                    </td>
+                    <td style="font-size: 11px; color: #888;">
+                        Peak: <span class="macd-pos">+{{ "%.1f%%"|format(m.peak_gain_pct) if m.peak_gain_pct else '0%' }}</span>
+                    </td>
+                    <td>
+                        {% for c in m.analyst_calls[:1] %}
+                            <span style="font-size:11px; color:#aaa;">{{ c.firm }}: {{ c.action }}</span>
+                        {% endfor %}
+                    </td>
+                    <td><span class="badge badge-{{ m.current_phase or 'NEUTRAL' }}">{{ (m.current_phase or 'NEUTRAL').replace('_', ' ') }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Ticker Management</h2>
+        <div class="management-box">
+            <form action="/api/tickers/add" method="POST" class="form-group">
+                <input type="text" name="ticker" placeholder="Enter Ticker" required style="text-transform: uppercase;">
+                <button type="submit">Add</button>
+            </form>
             {% for t in all_tickers %}
                 <div class="ticker-pill">
                     {{ t.ticker }}
@@ -124,72 +180,135 @@ TEMPLATE = """
         </div>
     </div>
 
-    <h2>Market Status & Backtesting</h2>
-    <div style="background: #1a1d27; padding: 16px; border-radius: 8px; margin-bottom: 24px; font-size: 13px; border: 1px solid #2a2d3a;">
-        <strong>Aggregate Performance (3y History)</strong>:
-        {% if aggregate_data %}
-            {% for a in aggregate_data %}
-                <span style="margin-right: 15px;">
-                    {{ a.ticker }}: <span class="macd-pos">{{ "%.0f%%"|format(a.win_rate) }} Win Rate</span> 
-                    (avg peak <span class="macd-pos">+{{ "%.1f%%"|format(a.avg_peak) }}</span>)
-                </span>
-            {% endfor %}
-        {% else %}
-            <span>Calculating history...</span>
-        {% endif %}
+    <!-- Pi Health Tab -->
+    <div id="health" class="tab-content">
+        <h2>Live Vitals</h2>
+        <div class="health-grid">
+            <div class="health-card">
+                <p>CPU</p>
+                <p style="color: #2ecc71">{{ "%.1f%%"|format(hw.cpu_usage) }}</p>
+            </div>
+            <div class="health-card">
+                <p>RAM</p>
+                <p style="color: #5dade2">{{ "%.1f%%"|format(hw.mem_usage) }}</p>
+            </div>
+            <div class="health-card">
+                <p>Temp</p>
+                <p style="color: #e74c3c">{{ "%.1f°F"|format((hw.temp * 9/5) + 32) }}</p>
+            </div>
+            <div class="health-card">
+                <p>Load (1m)</p>
+                <p>{{ "%.2f"|format(hw.load_1m) }}</p>
+            </div>
+        </div>
+
+        <h2>Historical Trends (24h)</h2>
+        <div class="chart-container">
+            <canvas id="healthChart"></canvas>
+        </div>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Ticker</th>
-                <th>Price</th>
-                <th>Backtesting (1w / 3w / Peak / Exit)</th>
-                <th>Recent Analyst Sentiment</th>
-                <th>Phase</th>
-                <th>Graph</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% if status_data %}
-                {% for m in status_data %}
-                <tr>
-                    <td><strong>{{ m.ticker }}</strong><br><span style="font-size: 10px; color: #555;">{{ m.period_end_date }}</span></td>
-                    <td>{{ "$%.2f"|format(m.current_price) if m.current_price else '—' }}<br>
-                        <span class="{{ 'macd-pos' if m.pct_change and m.pct_change > 0 else 'macd-neg' }}" style="font-size: 11px;">
-                            {{ "%+.2f%%"|format(m.pct_change) if m.pct_change else '—' }}
-                        </span>
-                    </td>
-                    <td class="backtest-score">
-                        1w: <span class="{{ 'macd-pos' if m.gain_1w_pct and m.gain_1w_pct > 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(m.gain_1w_pct) if m.gain_1w_pct else '—' }}</span> |
-                        3w: <span class="{{ 'macd-pos' if m.gain_3w_pct and m.gain_3w_pct > 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(m.gain_3w_pct) if m.gain_3w_pct else '—' }}</span><br>
-                        Peak: <span class="macd-pos">{{ "%+.1f%%"|format(m.peak_gain_pct) if m.peak_gain_pct else '—' }}</span> ({{ m.days_to_peak }}d) |
-                        Exit: <span class="{{ 'macd-pos' if m.exit_gain_pct and m.exit_gain_pct > 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(m.exit_gain_pct) if m.exit_gain_pct else '—' }}</span>
-                    </td>
-                    <td>
-                        <div class="analyst-feed">
-                        {% for c in m.analyst_calls %}
-                            <div class="analyst-item">
-                                <strong>{{ c.firm }}</strong>: {{ c.action }} ({{ "$%.0f"|format(c.target) if c.target else 'N/A' }})
-                            </div>
-                        {% endfor %}
-                        </div>
-                    </td>
-                    <td><span class="badge badge-{{ m.current_phase or 'NEUTRAL' }}">
-                        {{ (m.current_phase or 'NEUTRAL').replace('_', ' ') }}
-                    </span></td>
-                    <td><a href="/static/graph_{{ m.ticker }}.png" target="_blank" style="color: #5dade2;">View Graph</a></td>
-                </tr>
-                {% endfor %}
-            {% else %}
-                <tr><td colspan="6">No data found.</td></tr>
-            {% endif %}
-        </tbody>
-    </table>
+    <!-- System Memory Tab -->
+    <div id="system" class="tab-content">
+        <h2>Core Markdown Files</h2>
+        <p class="subtitle" style="margin-bottom: 20px;">These files define who I am, what I know about you, and what I've done.</p>
+        <div class="file-list">
+            {% for f in system_files %}
+            <div class="file-card" onclick="viewFile('{{ f.path }}', '{{ f.name }}')">
+                <h3>{{ f.name }}</h3>
+                <p>{{ f.description }}</p>
+                <span class="file-type">{{ f.type }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- File Modal -->
+    <div id="fileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">File Content</h2>
+                <button onclick="closeModal()" style="background:transparent; border:none; color:#666; font-size:24px; cursor:pointer;">&times;</button>
+            </div>
+            <div id="modalBody" class="modal-body">Loading...</div>
+        </div>
+    </div>
 
     <p class="refresh">Auto-refreshes every 5 min · <a href="/">Refresh now</a></p>
 </div>
-<script>setTimeout(() => location.reload(), 300000);</script>
+
+<script>
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        const activeTabElement = Array.from(document.querySelectorAll('.tab')).find(t => t.innerText.toLowerCase().includes(tabId.replace('market', 'analysis').replace('system', 'memory')));
+        if (activeTabElement) activeTabElement.classList.add('active');
+        localStorage.setItem('activeTab', tabId);
+    }
+
+    // Restore active tab
+    const savedTab = localStorage.getItem('activeTab') || 'market';
+    showTab(savedTab);
+
+    // File View Logic
+    function viewFile(path, name) {
+        document.getElementById('modalTitle').innerText = name;
+        document.getElementById('modalBody').innerText = "Loading...";
+        document.getElementById('fileModal').style.display = "block";
+        
+        fetch(`/api/file?path=${encodeURIComponent(path)}`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('modalBody').innerText = data.content;
+            });
+    }
+
+    function closeModal() {
+        document.getElementById('fileModal').style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        if (event.target == document.getElementById('fileModal')) closeModal();
+    }
+
+    // Health Chart
+    const ctx = document.getElementById('healthChart').getContext('2d');
+    const chartData = {{ history_json | safe }};
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.map(d => d.time),
+            datasets: [
+                { label: 'CPU %', data: chartData.map(d => d.cpu), borderColor: '#2ecc71', tension: 0.3, pointRadius: 0, yAxisID: 'y' },
+                { label: 'Temp °F', data: chartData.map(d => (d.temp * 9/5) + 32), borderColor: '#e74c3c', tension: 0.3, pointRadius: 0, yAxisID: 'y1' },
+                { label: 'RAM %', data: chartData.map(d => d.mem), borderColor: '#5dade2', tension: 0.3, pointRadius: 0, yAxisID: 'y' }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: { ticks: { color: '#666', maxTicksLimit: 12 }, grid: { color: '#1e2130' } },
+                y: { 
+                    type: 'linear', display: true, position: 'left',
+                    ticks: { color: '#2ecc71' },
+                    grid: { color: '#1e2130' },
+                    title: { display: true, text: 'Percentage (%)', color: '#888' },
+                    min: 0, max: 100
+                },
+                y1: {
+                    type: 'linear', display: true, position: 'right',
+                    ticks: { color: '#e74c3c' },
+                    grid: { drawOnChartArea: false },
+                    title: { display: true, text: 'Temperature (°F)', color: '#888' }
+                }
+            },
+            plugins: { legend: { labels: { color: '#aaa' } } }
+        }
+    });
+
+    setTimeout(() => location.reload(), 300000);
+</script>
 </body>
 </html>
 """
@@ -197,61 +316,32 @@ TEMPLATE = """
 @app.route("/")
 def index():
     conn = get_connection()
-    
-    # All Active Tickers for Management
     all_tickers = conn.execute("SELECT ticker FROM tickers WHERE active = 1 ORDER BY ticker").fetchall()
+    system_files = conn.execute("SELECT * FROM system_config_files").fetchall()
+    
+    hardware_data = conn.execute("SELECT * FROM hardware_stats ORDER BY timestamp DESC LIMIT 1").fetchone()
+    if not hardware_data: hardware_data = {"cpu_usage": 0, "mem_usage": 0, "disk_usage": 0, "temp": 0, "load_1m": 0}
 
-    # Aggregate Stats
-    aggregate_data = conn.execute("""
-        SELECT ticker, 
-               (SUM(CASE WHEN peak_gain_pct > 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) as win_rate,
-               AVG(peak_gain_pct) as avg_peak
-        FROM signals 
-        WHERE signal_type = 'BUY'
-        GROUP BY ticker
-    """).fetchall()
+    history = conn.execute("SELECT strftime('%H:%M', timestamp) as time, cpu_usage, mem_usage, temp FROM hardware_stats WHERE timestamp > datetime('now', '-24 hours') ORDER BY timestamp ASC").fetchall()
+    history_json = [{"time": h["time"], "cpu": h["cpu_usage"], "mem": h["mem_usage"], "temp": h["temp"]} for h in history]
 
-    # Market Status with Backtesting Scorecard
     status_data = conn.execute("""
         SELECT m.ticker, m.current_phase, m.period_end_date,
                p.close as current_price,
-               p.volume as current_volume,
                ((p.close - prev.close) / prev.close) * 100 as pct_change,
-               s.gain_1w_pct, s.gain_2w_pct as gain_3w_pct, s.peak_gain_pct, s.days_to_peak, s.exit_gain_pct,
+               s.peak_gain_pct,
                e.recent_analyst_calls_json
         FROM macd_5d_data m
-        INNER JOIN (
-            SELECT ticker, MAX(period_end_date) as latest
-            FROM macd_5d_data
-            GROUP BY ticker
-        ) latest ON m.ticker = latest.ticker AND m.period_end_date = latest.latest
+        INNER JOIN (SELECT ticker, MAX(period_end_date) as latest FROM macd_5d_data GROUP BY ticker) latest ON m.ticker = latest.ticker AND m.period_end_date = latest.latest
         INNER JOIN tickers t ON t.ticker = m.ticker AND t.active = 1
         LEFT JOIN daily_prices p ON p.ticker = m.ticker AND p.date = m.period_end_date
-        LEFT JOIN daily_prices prev ON prev.ticker = m.ticker AND prev.date = (
-            SELECT MAX(date) FROM daily_prices WHERE ticker = m.ticker AND date < m.period_end_date
-        )
-        LEFT JOIN (
-            SELECT s1.ticker, s1.gain_1w_pct, s1.gain_2w_pct, s1.peak_gain_pct, s1.days_to_peak, s1.exit_gain_pct
-            FROM signals s1
-            JOIN (
-                SELECT ticker, MAX(signal_date) as max_date
-                FROM signals
-                WHERE signal_type = 'BUY'
-                GROUP BY ticker
-            ) s2 ON s1.ticker = s2.ticker AND s1.signal_date = s2.max_date
-            WHERE s1.signal_type = 'BUY'
-        ) s ON s.ticker = m.ticker
-        LEFT JOIN (
-            SELECT ticker, recent_analyst_calls_json
-            FROM earnings_data
-            GROUP BY ticker
-            HAVING MAX(fetched_date)
-        ) e ON e.ticker = m.ticker
+        LEFT JOIN daily_prices prev ON prev.ticker = m.ticker AND prev.date = (SELECT MAX(date) FROM daily_prices WHERE ticker = m.ticker AND date < m.period_end_date)
+        LEFT JOIN signals s ON s.ticker = m.ticker AND s.signal_type = 'BUY' AND s.signal_date = (SELECT MAX(signal_date) FROM signals WHERE ticker = s.ticker AND signal_type = 'BUY')
+        LEFT JOIN (SELECT ticker, recent_analyst_calls_json FROM earnings_data GROUP BY ticker HAVING MAX(fetched_date)) e ON e.ticker = m.ticker
         ORDER BY m.ticker
     """).fetchall()
     conn.close()
 
-    # Convert analyst json to list for template
     processed_data = []
     for r in status_data:
         d = dict(r)
@@ -260,31 +350,29 @@ def index():
         
     return render_template_string(TEMPLATE, 
                                   status_data=processed_data, 
-                                  aggregate_data=aggregate_data,
                                   all_tickers=all_tickers,
+                                  system_files=system_files,
+                                  hw=hardware_data,
+                                  history_json=json.dumps(history_json),
                                   now=datetime.now().strftime("%B %d, %Y %I:%M %p"))
+
+@app.route("/api/file")
+def get_file():
+    path = request.args.get("path")
+    try:
+        with open(path, "r") as f:
+            return jsonify({"content": f.read()})
+    except Exception as e:
+        return jsonify({"content": f"Error reading file: {e}"})
 
 @app.route("/api/tickers/add", methods=["POST"])
 def add_ticker():
     ticker = request.form.get("ticker", "").upper().strip()
-    if not ticker:
-        return redirect(url_for("index"))
-    
-    conn = get_connection()
-    try:
-        # Check if it exists but is inactive
-        existing = conn.execute("SELECT ticker FROM tickers WHERE ticker = ?", (ticker,)).fetchone()
-        if existing:
-            conn.execute("UPDATE tickers SET active = 1 WHERE ticker = ?", (ticker,))
-        else:
-            conn.execute("INSERT INTO tickers (ticker, active, added_date) VALUES (?, 1, ?)", 
-                         (ticker, date.today().isoformat()))
+    if ticker:
+        conn = get_connection()
+        conn.execute("INSERT OR REPLACE INTO tickers (ticker, active, added_date) VALUES (?, 1, ?)", (ticker, date.today().isoformat()))
         conn.commit()
-    except Exception as e:
-        print(f"Error adding ticker: {e}")
-    finally:
         conn.close()
-    
     return redirect(url_for("index"))
 
 @app.route("/api/tickers/remove/<ticker>", methods=["POST"])
@@ -294,32 +382,6 @@ def remove_ticker(ticker):
     conn.commit()
     conn.close()
     return redirect(url_for("index"))
-
-@app.route("/api/signals/unsent")
-def get_unsent_signals():
-    conn = get_connection()
-    signals = conn.execute("""
-        SELECT s.id, s.ticker, s.signal_date, s.signal_type, s.price_at_signal, 
-               e.recent_analyst_calls_json,
-               (SELECT (SUM(CASE WHEN peak_gain_pct > 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
-                FROM signals WHERE ticker = s.ticker AND signal_type = 'BUY') as win_rate,
-               (SELECT AVG(peak_gain_pct) FROM signals WHERE ticker = s.ticker AND signal_type = 'BUY') as avg_peak
-        FROM signals s
-        LEFT JOIN earnings_data e ON e.ticker = s.ticker 
-             AND e.fetched_date = (SELECT MAX(fetched_date) FROM earnings_data WHERE ticker = s.ticker)
-        WHERE s.discord_message_id IS NULL
-        ORDER BY s.signal_date DESC
-    """).fetchall()
-    conn.close()
-    return jsonify([dict(s) for s in signals])
-
-@app.route("/api/signals/mark-sent/<int:signal_id>", methods=["POST"])
-def mark_signal_sent(signal_id):
-    conn = get_connection()
-    conn.execute("UPDATE signals SET discord_message_id = 'SENT' WHERE id = ?", (signal_id,))
-    conn.commit()
-    conn.close()
-    return jsonify({"status": "success"})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

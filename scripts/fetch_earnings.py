@@ -128,12 +128,12 @@ def safe_get(d: dict, *keys, default=None):
 
 
 def fetch_fmp_analyst_calls(ticker: str) -> list[dict]:
-    """Fetches the price target summary from FMP."""
+    """Fetches individual price targets from FMP v4."""
     if not FMP_API_KEY:
         log.warning(f"{ticker}: FMP_API_KEY not set, skipping analyst calls")
         return []
     
-    url = FMP_TARGETS_URL.format(ticker=ticker, apikey=FMP_API_KEY)
+    url = f"https://financialmodelingprep.com/api/v4/price-target?symbol={ticker}&apikey={FMP_API_KEY}"
     try:
         resp = requests.get(url, timeout=15)
         if resp.status_code == 200:
@@ -141,23 +141,39 @@ def fetch_fmp_analyst_calls(ticker: str) -> list[dict]:
             if not data:
                 return []
             
-            # Since individual calls are restricted/unsupported on current API version,
-            # we return the summary metrics as a "virtual" feed entry for the dashboard.
-            s = data[0]
-            return [
-                {
-                    "firm": "FMP Consensus (1M)",
-                    "action": f"{s.get('lastMonthCount')} Analysts",
-                    "target": s.get("lastMonthAvgPriceTarget"),
-                    "date": "Recent"
-                },
-                {
-                    "firm": "FMP Consensus (3M)",
-                    "action": f"{s.get('lastQuarterCount')} Analysts",
-                    "target": s.get("lastQuarterAvgPriceTarget"),
-                    "date": "90 Days"
-                }
-            ]
+            calls = []
+            # Take the top 5 to find 3 with price targets
+            for item in data[:5]:
+                firm = item.get("publisher", "Unknown Firm")
+                target = item.get("priceTarget")
+                date_str = item.get("publishedDate", "")
+                
+                if not target:
+                    continue
+                
+                # Clean firm name
+                firm = firm.replace(" Securities", "").replace(" Research", "").replace(" & Co.", "")
+                
+                # Try to extract action from headline (e.g., "Maintains Buy", "Downgrades to Neutral")
+                headline = item.get("newsHeadline", "").lower()
+                action = "Update"
+                if "buy" in headline or "overweight" in headline or "outperform" in headline:
+                    action = "Buy"
+                elif "sell" in headline or "underweight" in headline or "underperform" in headline:
+                    action = "Sell"
+                elif "neutral" in headline or "hold" in headline or "equal-weight" in headline:
+                    action = "Neutral"
+
+                calls.append({
+                    "firm": firm,
+                    "action": action,
+                    "target": target,
+                    "date": date_str.split("T")[0] if date_str else "Recent"
+                })
+                
+                if len(calls) >= 3:
+                    break
+            return calls
         else:
             log.error(f"{ticker}: FMP HTTP {resp.status_code}")
     except Exception as e:
