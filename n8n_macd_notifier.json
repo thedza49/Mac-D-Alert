@@ -1,5 +1,5 @@
 {
-  "name": "Mac-D-Alert Discord Notifier (v3 - Enhanced)",
+  "name": "Mac-D-Alert Discord Notifier (v3 - Fixed)",
   "nodes": [
     {
       "parameters": {
@@ -12,12 +12,11 @@
           ]
         }
       },
-      "id": "b5cbc740-cf0a-4410-b627-d93259a011dd",
       "name": "Check Signals Every 30 Mins",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
       "position": [
-        -100,
+        0,
         0
       ]
     },
@@ -26,12 +25,11 @@
         "operation": "executeQuery",
         "query": "SELECT s.id, s.ticker, s.signal_date, s.signal_type, s.price_at_signal, s.performance_history, e.recent_analyst_calls_json, (SELECT (SUM(CASE WHEN peak_gain_pct > 3 THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) FROM signals WHERE ticker = s.ticker AND signal_type = 'BUY') as win_rate, (SELECT avg_price_target FROM earnings_data WHERE ticker = s.ticker ORDER BY fetched_date DESC LIMIT 1) as consensus_target FROM signals s LEFT JOIN earnings_data e ON e.ticker = s.ticker AND e.fetched_date = (SELECT MAX(fetched_date) FROM earnings_data WHERE ticker = s.ticker) WHERE s.discord_message_id IS NULL ORDER BY s.signal_date DESC;"
       },
-      "id": "71e41471-6a85-4df1-8003-c41fa17a21a6",
       "name": "Fetch New Signals",
       "type": "n8n-nodes-base.sqlite",
       "typeVersion": 1,
       "position": [
-        100,
+        250,
         0
       ]
     },
@@ -39,12 +37,11 @@
       "parameters": {
         "jsCode": "const today = new Date();\n\nreturn items.map(item => {\n  const s = item.json;\n  const price = s.price_at_signal || 0;\n  const isBuy = s.signal_type.includes('BUY');\n  \n  // Analyst formatting\n  let analystTape = \"No recent analyst data.\";\n  let analysts = [];\n  try {\n    analysts = JSON.parse(s.recent_analyst_calls_json || '[]');\n  } catch (e) {\n    analysts = [];\n  }\n  \n  if (analysts.length > 0) {\n    analystTape = analysts.map(a => {\n      const callDate = new Date(a.date);\n      const diffDays = Math.floor((today - callDate) / (1000 * 60 * 60 * 24));\n      const ago = diffDays === 0 ? 'today' : `${diffDays} days ago`;\n      const upside = (a.target && price > 0) ? (((a.target - price) / price) * 100).toFixed(1) : 'N/A';\n      const upsideStr = upside !== 'N/A' ? ` (+${upside}%)` : '';\n      return `• **${a.firm}** (${ago}): ${a.action} → **$${a.target}**${upsideStr}`;\n    }).join('\\n');\n  }\n\n  // Consensus formatting\n  const conUpside = (s.consensus_target && price > 0) ? (((s.consensus_target - price) / price) * 100).toFixed(1) : 'N/A';\n  const consensusStr = s.consensus_target ? `**$${s.consensus_target.toFixed(2)}**` + (conUpside !== 'N/A' ? ` (+${conUpside}% upside)` : '') : \"N/A\";\n\n  return {\n    json: {\n      ...s,\n      isBuy,\n      color: isBuy ? 3066993 : 15158332,\n      emoji: isBuy ? '🟢' : '🔴',\n      analystTape,\n      consensusStr,\n      historySection: (isBuy && s.performance_history) ? s.performance_history : null\n    }\n  };\n});"
       },
-      "id": "d9d4fb49-f9a6-4850-ab08-a589c636e186",
       "name": "Format Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 1,
       "position": [
-        300,
+        500,
         0
       ]
     },
@@ -52,12 +49,11 @@
       "parameters": {
         "filePath": "=/home/daniel/Mac-D-Alert/scripts/static/graph_{{$json.ticker}}.png"
       },
-      "id": "read-graph-node",
       "name": "Read Graph Image",
       "type": "n8n-nodes-base.readBinaryFile",
       "typeVersion": 1,
       "position": [
-        500,
+        750,
         0
       ]
     },
@@ -77,12 +73,11 @@
           ]
         }
       },
-      "id": "511e1f12-a36c-4f7b-a686-10fc66980bc8",
       "name": "Send to Discord",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [
-        700,
+        1000,
         0
       ]
     },
@@ -91,12 +86,11 @@
         "operation": "executeQuery",
         "query": "=UPDATE signals SET discord_message_id = 'SENT' WHERE id = {{$node[\"Fetch New Signals\"].json.id}};"
       },
-      "id": "a0fffd73-3eb3-4d56-ae02-b0c4b439f559",
       "name": "Mark as Notified",
       "type": "n8n-nodes-base.sqlite",
       "typeVersion": 1,
       "position": [
-        900,
+        1250,
         0
       ]
     }
