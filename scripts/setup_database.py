@@ -122,6 +122,7 @@ def create_database() -> None:
         discord_message_id TEXT,
         alert_markdown_path TEXT,
         chart_image_path TEXT,
+        performance_history TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
