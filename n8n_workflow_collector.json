@@ -1,5 +1,5 @@
 {
-  "name": "Mac-D-Alert: Workflow A (The Collector)",
+  "name": "Mac-D-Alert: Workflow A (The Collector - API Driven)",
   "nodes": [
     {
       "parameters": {
@@ -18,24 +18,21 @@
       "position": [
         0,
         0
-      ],
-      "id": "aa72beb1-e4da-44b6-a243-8ef7feb58f1d",
-      "retryOnFail": true,
-      "executeOnce": true
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://172.17.0.1:5001/run/collector"
+        "url": "http://localhost:5000/api/run/collector",
+        "options": {}
       },
-      "name": "Execute Fetchers",
+      "name": "Trigger Fetchers",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "typeVersion": 4,
       "position": [
-        208,
+        250,
         0
-      ],
-      "id": "1edf586f-3364-4584-acdc-efb4c988f6d9"
+      ]
     }
   ],
   "connections": {
@@ -43,7 +40,7 @@
       "main": [
         [
           {
-            "node": "Execute Fetchers",
+            "node": "Trigger Fetchers",
             "type": "main",
             "index": 0
           }

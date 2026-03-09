@@ -1,5 +1,5 @@
 {
-  "name": "Mac-D-Alert: Workflow B (The Engine)",
+  "name": "Mac-D-Alert: Workflow B (The Engine - API Driven)",
   "nodes": [
     {
       "parameters": {
@@ -16,24 +16,23 @@
       "type": "n8n-nodes-base.cron",
       "typeVersion": 1,
       "position": [
-        250,
-        300
-      ],
-      "id": "c037444e-980c-4900-9945-3a194922b30f"
+        0,
+        0
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "http://172.17.0.1:5001/run/engine"
+        "url": "http://localhost:5000/api/run/engine",
+        "options": {}
       },
-      "name": "Execute Logic",
+      "name": "Trigger Logic",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
+      "typeVersion": 4,
       "position": [
-        450,
-        300
-      ],
-      "id": "7005b22f-ed76-4422-91f8-30a9abd42361"
+        250,
+        0
+      ]
     }
   ],
   "connections": {
@@ -41,7 +40,7 @@
       "main": [
         [
           {
-            "node": "Execute Logic",
+            "node": "Trigger Logic",
             "type": "main",
             "index": 0
           }
