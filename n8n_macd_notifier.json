@@ -22,8 +22,10 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:5000/api/signals/unsent",
-        "options": {}
+        "url": "http://192.168.1.152:5000/api/signals/unsent",
+        "options": {
+          "splitIntoItems": true
+        }
       },
       "name": "Fetch Unsent Signals",
       "type": "n8n-nodes-base.httpRequest",
@@ -35,7 +37,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const today = new Date();\n\nreturn items.map(item => {\n  const s = item.json;\n  const price = s.price_at_signal || 0;\n  const isBuy = s.signal_type.includes('BUY');\n  \n  // Analyst formatting\n  let analystTape = \"No recent analyst data.\";\n  const analysts = s.analysts || [];\n  \n  if (analysts.length > 0) {\n    analystTape = analysts.map(a => {\n      const callDate = new Date(a.date);\n      const diffDays = Math.floor((today - callDate) / (1000 * 60 * 60 * 24));\n      const ago = diffDays === 0 ? 'today' : `${diffDays} days ago`;\n      const upside = (a.target && price > 0) ? (((a.target - price) / price) * 100).toFixed(1) : 'N/A';\n      const upsideStr = upside !== 'N/A' ? ` (+${upside}%)` : '';\n      return `• **${a.firm}** (${ago}): ${a.action} → **$${a.target}**${upsideStr}`;\n    }).join('\\n');\n  }\n\n  // Consensus formatting\n  const conUpside = (s.consensus_target && price > 0) ? (((s.consensus_target - price) / price) * 100).toFixed(1) : 'N/A';\n  const consensusStr = s.consensus_target ? `**$${s.consensus_target.toFixed(2)}**` + (conUpside !== 'N/A' ? ` (+${conUpside}% upside)` : '') : \"N/A\";\n\n  return {\n    json: {\n      ...s,\n      isBuy,\n      color: isBuy ? 3066993 : 15158332,\n      emoji: isBuy ? '🟢' : '🔴',\n      analystTape,\n      consensusStr,\n      historySection: (isBuy && s.performance_history) ? s.performance_history : null\n    }\n  };\n});"
+        "jsCode": "const today = new Date();\n\n// Check if s exists and has signal_type to avoid errors\nconst s = $json;\nif (!s || !s.signal_type) {\n  return [];\n}\n\nconst price = s.price_at_signal || 0;\nconst isBuy = s.signal_type.includes('BUY');\n\n// Analyst formatting\nlet analystTape = \"No recent analyst data.\";\nconst analysts = s.analysts || [];\n\nif (analysts.length > 0) {\n  analystTape = analysts.map(a => {\n    const callDate = new Date(a.date);\n    const diffDays = Math.floor((today - callDate) / (1000 * 60 * 60 * 24));\n    const ago = diffDays === 0 ? 'today' : `${diffDays} days ago`;\n    const upside = (a.target && price > 0) ? (((a.target - price) / price) * 100).toFixed(1) : 'N/A';\n    const upsideStr = upside !== 'N/A' ? ` (+${upside}%)` : '';\n    return `• **${a.firm}** (${ago}): ${a.action} → **$${a.target}**${upsideStr}`;\n  }).join('\\n');\n}\n\n// Consensus formatting\nconst conUpside = (s.consensus_target && price > 0) ? (((s.consensus_target - price) / price) * 100).toFixed(1) : 'N/A';\nconst consensusStr = s.consensus_target ? `**$${s.consensus_target.toFixed(2)}**` + (conUpside !== 'N/A' ? ` (+${conUpside}% upside)` : '') : \"N/A\";\n\nreturn {\n  ...s,\n  isBuy,\n  color: isBuy ? 3066993 : 15158332,\n  emoji: isBuy ? '🟢' : '🔴',\n  analystTape,\n  consensusStr,\n  historySection: (isBuy && s.performance_history) ? s.performance_history : null\n};"
       },
       "name": "Format Data",
       "type": "n8n-nodes-base.code",
@@ -47,11 +49,13 @@
     },
     {
       "parameters": {
-        "filePath": "=/home/daniel/Mac-D-Alert/scripts/static/graph_{{$json.ticker}}.png"
+        "url": "=http://192.168.1.152:5000/static/graph_{{$json.ticker}}.png",
+        "responseFormat": "file",
+        "options": {}
       },
-      "name": "Read Graph Image",
-      "type": "n8n-nodes-base.readBinaryFile",
-      "typeVersion": 1,
+      "name": "Fetch Graph Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [
         750,
         0
@@ -60,7 +64,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://discord.com/api/webhooks/1478787665003282525/qCaVfIGXtJVubnZH7LcjwDkrYMRideLoL5zjyMHXB7XgOF9D3InuORXJ3U72yiodyuoe",
+        "url": "={{$env.DISCORD_WEBHOOK_URL}}",
         "sendBinaryData": true,
         "binaryPropertyName": "data",
         "sendBody": true,
@@ -68,7 +72,7 @@
           "parameters": [
             {
               "name": "payload_json",
-              "value": "={{JSON.stringify({\n  embeds: [{\n    title: $json.emoji + ' ' + $json.signal_type.replace(/_/g, ' ') + ': ' + $json.ticker,\n    color: $json.color,\n    fields: [\n      { name: '💰 Price at Signal', value: '$' + ($json.price_at_signal ? $json.price_at_signal.toFixed(2) : '0.00'), inline: true },\n      { name: '📊 Historical Win Rate', value: '**' + ($json.win_rate || 0).toFixed(0) + '%**', inline: true },\n      ...($json.historySection ? [{ name: '📈 Historical Performance (Last 3)', value: $json.historySection, inline: false }] : []),\n      { name: '📝 Analyst Sentiment (Last 3)', value: $json.analystTape + '\\n**Consensus**: ' + $json.consensusStr, inline: false }\n    ],\n    footer: { text: 'Sovson Analytics • ' + $json.signal_date },\n    image: { url: 'attachment://graph_' + $json.ticker + '.png' }\n  }]\n})}}"
+              "value": "={{JSON.stringify({\n  embeds: [{\n    title: $(\"Format Data\").item.json.emoji + ' ' + $(\"Format Data\").item.json.signal_type.replace(/_/g, ' ') + ': ' + $(\"Format Data\").item.json.ticker,\n    color: $(\"Format Data\").item.json.color,\n    fields: [\n      { name: '💰 Price at Signal', value: '$' + ($(\"Format Data\").item.json.price_at_signal ? $(\"Format Data\").item.json.price_at_signal.toFixed(2) : '0.00'), inline: true },\n      { name: '📊 Historical Win Rate', value: '**' + ($(\"Format Data\").item.json.win_rate || 0).toFixed(0) + '%**', inline: true },\n      ...($(\"Format Data\").item.json.historySection ? [{ name: '📈 Historical Performance (Last 3)', value: $(\"Format Data\").item.json.historySection, inline: false }] : []),\n      { name: '📝 Analyst Sentiment (Last 3)', value: $(\"Format Data\").item.json.analystTape + '\\n**Consensus**: ' + $(\"Format Data\").item.json.consensusStr, inline: false }\n    ],\n    footer: { text: 'Sovson Analytics • ' + $(\"Format Data\").item.json.signal_date },\n    image: { url: 'attachment://data' }\n  }]\n})}}"
             }
           ]
         }
@@ -84,7 +88,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://localhost:5000/api/signals/mark-sent/{{$json.id}}",
+        "url": "=http://192.168.1.152:5000/api/signals/mark-sent/{{$(\"Format Data\").item.json.id}}",
         "options": {}
       },
       "name": "Mark Sent",
@@ -123,14 +127,14 @@
       "main": [
         [
           {
-            "node": "Read Graph Image",
+            "node": "Fetch Graph Image",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Read Graph Image": {
+    "Fetch Graph Image": {
       "main": [
         [
           {
