@@ -64,7 +64,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{$env.DISCORD_WEBHOOK_URL}}",
+        "url": "https://discord.com/api/webhooks/1478787665003282525/qCaVfIGXtJVubnZH7LcjwDkrYMRideLoL5zjyMHXB7XgOF9D3InuORXJ3U72yiodyuoe",
         "sendBinaryData": true,
         "binaryPropertyName": "data",
         "sendBody": true,
