@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "url": "http://localhost:5000/api/signals/unsent",
+        "url": "http://172.17.0.1:5000/api/signals/unsent",
         "options": {}
       },
       "name": "Fetch Unsent Signals",
@@ -70,7 +70,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=http://localhost:5000/api/signals/mark-sent/{{$node[\"Split Signals\"].json[\"id\"]}}",
+        "url": "=http://172.17.0.1:5000/api/signals/mark-sent/{{$node[\"Split Signals\"].json[\"id\"]}}",
         "options": {}
       },
       "name": "Mark Sent",

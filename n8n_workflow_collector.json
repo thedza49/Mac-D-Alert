@@ -23,7 +23,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://localhost:5000/api/run/collector",
+        "url": "http://172.17.0.1:5000/api/run/collector",
         "options": {}
       },
       "name": "Trigger Fetchers",
