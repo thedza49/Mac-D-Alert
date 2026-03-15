@@ -16,6 +16,7 @@ nohup.out
 
 # Database
 *.db
+scripts/static/*.png
 
 # OS
 .DS_Store

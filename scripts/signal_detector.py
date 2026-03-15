@@ -440,21 +440,21 @@ def process_ticker(conn: sqlite3.Connection, ticker: str, signal_date: str = Non
 
 def calculate_backtest_returns(conn: sqlite3.Connection, ticker: str, signal_date: str, price_at_signal: float):
     """Calculates returns at 1w, 3w, peak, and exit for a signal."""
-    # 1 week later (approx 5 trading days)
+    # 1. Peak within first 5 trading days (1 week)
     row_1w = conn.execute(
-        "SELECT close FROM daily_prices WHERE ticker = ? AND date > ? ORDER BY date ASC LIMIT 1 OFFSET 4",
+        "SELECT MAX(high) as peak_high FROM (SELECT high FROM daily_prices WHERE ticker = ? AND date > ? ORDER BY date ASC LIMIT 5)",
         (ticker, signal_date)
     ).fetchone()
     
-    # 3 weeks later (approx 15 trading days)
+    # 2. Peak within first 15 trading days (3 weeks)
     row_3w = conn.execute(
-        "SELECT close FROM daily_prices WHERE ticker = ? AND date > ? ORDER BY date ASC LIMIT 1 OFFSET 14",
+        "SELECT MAX(high) as peak_high FROM (SELECT high FROM daily_prices WHERE ticker = ? AND date > ? ORDER BY date ASC LIMIT 15)",
         (ticker, signal_date)
     ).fetchone()
     
-    # Peak return since signal
+    # 3. Peak within first 30 trading days (Absolute Signal Peak)
     peak_row = conn.execute(
-        "SELECT MAX(high) as peak, date FROM daily_prices WHERE ticker = ? AND date > ?",
+        "SELECT MAX(high) as peak, date FROM (SELECT high, date FROM daily_prices WHERE ticker = ? AND date > ? ORDER BY date ASC LIMIT 30)",
         (ticker, signal_date)
     ).fetchone()
     
@@ -465,19 +465,17 @@ def calculate_backtest_returns(conn: sqlite3.Connection, ticker: str, signal_dat
     ).fetchone()
 
     updates = {}
-    if row_1w:
-        p1 = row_1w["close"]
+    if row_1w and row_1w["peak_high"] is not None:
+        p1 = row_1w["peak_high"]
         updates["price_1w_later"] = p1
         updates["gain_1w_pct"] = round(((p1 - price_at_signal) / price_at_signal) * 100, 2)
         
-    if row_3w:
-        p3 = row_3w["close"]
-        updates["price_4w_later"] = p3 # using 4w column for 3w as requested in prompt scorecard?
-        # prompt says 1-week and 3-week. I'll use gain_1w_pct and gain_2w_pct (renamed in UI) or just repurpose.
-        # Actually I'll use gain_1w_pct and gain_2w_pct for 1w and 3w.
+    if row_3w and row_3w["peak_high"] is not None:
+        p3 = row_3w["peak_high"]
+        updates["price_2w_later"] = p3 
         updates["gain_2w_pct"] = round(((p3 - price_at_signal) / price_at_signal) * 100, 2)
 
-    if peak_row and peak_row["peak"]:
+    if peak_row and peak_row["peak"] is not None:
         peak = peak_row["peak"]
         updates["peak_price"] = peak
         updates["peak_gain_pct"] = round(((peak - price_at_signal) / price_at_signal) * 100, 2)

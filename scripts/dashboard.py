@@ -135,6 +135,7 @@ TEMPLATE = """
                 <tr>
                     <th>Ticker</th>
                     <th>Price</th>
+                    <th>Data Date</th>
                     <th>Backtesting</th>
                     <th>Analyst Sentiment</th>
                     <th>Phase</th>
@@ -149,6 +150,7 @@ TEMPLATE = """
                             {{ "%+.2f%%"|format(m.pct_change) if m.pct_change else '—' }}
                         </span>
                     </td>
+                    <td style="font-size: 11px; color: #888;">{{ m.period_end_date }}</td>
                     <td style="font-size: 11px; color: #888;">
                         Peak: <span class="macd-pos">+{{ "%.1f%%"|format(m.peak_gain_pct) if m.peak_gain_pct else '0%' }}</span>
                     </td>
@@ -158,6 +160,13 @@ TEMPLATE = """
                         {% endfor %}
                     </td>
                     <td><span class="badge badge-{{ m.current_phase or 'NEUTRAL' }}">{{ (m.current_phase or 'NEUTRAL').replace('_', ' ') }}</span></td>
+                </tr>
+                <tr>
+                    <td colspan="6" style="padding: 0; border-bottom: none;">
+                        <div style="background: #111; padding: 10px; border-radius: 4px; margin: 5px 12px 15px;">
+                            <img src="/static/graph_{{ m.ticker }}.png" alt="MACD Graph for {{ m.ticker }}" style="width: 100%; max-width: 800px; border-radius: 4px; border: 1px solid #2a2d3a;">
+                        </div>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
