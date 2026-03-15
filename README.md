@@ -48,7 +48,8 @@ sudo systemctl enable --now macd-dashboard.service
 ### 3. Install n8n Workflows (Automated Tasks)
 You don't need to write any code here. Just import the "Workflows" into your n8n dashboard:
 
-1.  **Open n8n** in your browser.
+1.  **Download the latest workflows**: Go to the [Releases page](https://github.com/thedza49/Mac-D-Alert/releases) and download the `n8n_workflows.zip`.
+2.  **Open n8n** in your browser.
 2.  Click **Workflows** > **Add Workflow**.
 3.  Click the **three dots (⋮)** in the top right and select **Import from File**.
 4.  Upload the three files found in the `Mac-D-Alert` folder:
