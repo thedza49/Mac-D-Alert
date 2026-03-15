@@ -1,7 +1,7 @@
 # PROJECT_BRIEF: Mac-D-Alert (Sovson Analytics)
 
 **Date**: February 26, 2026
-**Status**: v1.2.3 (Active & Automated)
+**Status**: v1.2.4 (Active & Automated)
 
 ## 🎯 Overview
 Mac-D-Alert is a stock market technical analysis tool designed to identify "Buy" and "Approaching Buy" signals using a 5-day rolling MACD strategy combined with Heikin Ashi price action. It runs on a Raspberry Pi 4.
