@@ -565,7 +565,26 @@ def main() -> None:
         elif args.backtest_only:
             run_backtest_only(conn, ticker)
         else:
-            process_ticker(conn, ticker)
+            # ROBUST DAILY RUN:
+            # Instead of just today, we scan the last 7 available days of MACD data.
+            # This ensures that if the Pi was off for a weekend, we still catch
+            # the crossovers that happened on Friday or Monday.
+            # Duplicate prevention (already_signaled) keeps the signals table clean.
+            
+            # 1. Auto-backfill check
+            sig_count = conn.execute("SELECT COUNT(*) FROM signals WHERE ticker = ?", (ticker,)).fetchone()[0]
+            if sig_count == 0:
+                log.info(f"{ticker}: No signals found. Running initial backfill...")
+                run_history_scan(conn, ticker)
+            
+            # 2. Process recent window (7 days)
+            recent_dates = conn.execute(
+                "SELECT period_end_date FROM macd_5d_data WHERE ticker = ? ORDER BY period_end_date DESC LIMIT 7",
+                (ticker,)
+            ).fetchall()
+            
+            for r in reversed(recent_dates):
+                process_ticker(conn, ticker, signal_date=r["period_end_date"])
 
     conn.close()
 

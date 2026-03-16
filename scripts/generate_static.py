@@ -3,6 +3,8 @@ import pandas as pd
 import mplfinance as mpf
 import matplotlib.pyplot as plt
 import os
+import sys
+import subprocess
 from datetime import datetime
 
 def generate_static_graph(ticker='AAPL'):
@@ -39,6 +41,22 @@ def generate_static_graph(ticker='AAPL'):
     ORDER BY signal_date DESC LIMIT 50
     """
     sdf = pd.read_sql_query(sig_query, conn)
+    
+    # SELF-HEALING: If we have plenty of price data but 0 signals, 
+    # trigger the signal detector to backfill history.
+    if sdf.empty and len(df) > 50:
+        print(f"⚠️ {ticker}: No signals found in database but price history exists. Triggering auto-repair...")
+        conn.close() # Close to avoid lock during subprocess
+        try:
+            # Trigger history scan in background
+            subprocess.run([sys.executable, '/home/daniel/Mac-D-Alert/scripts/signal_detector.py', ticker, '--history'], check=True)
+            # Re-fetch signals after repair
+            conn = sqlite3.connect(db_path)
+            sdf = pd.read_sql_query(sig_query, conn)
+        except Exception as e:
+            print(f"❌ Failed to repair signals for {ticker}: {e}")
+            conn = sqlite3.connect(db_path) # Ensure conn is open for the rest of the script
+    
     conn.close()
 
     # Prepare index
@@ -91,6 +109,11 @@ def generate_static_graph(ticker='AAPL'):
                            style=s, volume=False, datetime_format='%b %Y', 
                            tight_layout=True, returnfig=True)
     
+    # Set tick colors to white
+    for ax in axlist:
+        ax.tick_params(axis='x', colors='white')
+        ax.tick_params(axis='y', colors='white')
+
     # Add large watermark to the background of the top panel (axlist[0])
     axlist[0].text(0.5, 0.5, ticker, transform=axlist[0].transAxes,
                    fontsize=80, color='white', alpha=0.07,
@@ -105,9 +128,7 @@ def generate_static_graph(ticker='AAPL'):
         Line2D([0], [0], marker='o', color='w', label='APRCH SELL', markerfacecolor='#e74c3c', markersize=8),
     ]
     # Use white text for the legend on dark background
-    leg = axlist[0].legend(handles=legend_elements, loc='upper left', fontsize=9, frameon=True, facecolor='#1a1d27', edgecolor='#2a2d3a')
-    for text in leg.get_texts():
-        text.set_color('white')
+    leg = axlist[0].legend(handles=legend_elements, loc='upper left', fontsize=9, frameon=True, facecolor='#1a1d27', edgecolor='#2a2d3a', labelcolor='white')
 
     # Add Label and Legend to the MACD panel (usually axlist[2] when no volume)
     # axlist mapping: [Main, [Secondary-Main?], Panel1, [Secondary-Panel1?]]
@@ -115,11 +136,9 @@ def generate_static_graph(ticker='AAPL'):
     if len(axlist) >= 3:
         macd_ax = axlist[2]
         macd_ax.set_ylabel('MACD / Signal', color='white', fontsize=10)
+        macd_ax.tick_params(axis='y', colors='white')
         # Adding a small legend for the MACD panel
-        macd_leg = macd_ax.legend(loc='upper left', fontsize=8, frameon=False)
-        if macd_leg:
-            for text in macd_leg.get_texts():
-                text.set_color('white')
+        macd_leg = macd_ax.legend(loc='upper left', fontsize=8, frameon=False, labelcolor='white')
 
     fig.savefig(output_path)
     plt.close(fig)
