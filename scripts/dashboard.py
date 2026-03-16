@@ -57,6 +57,7 @@ TEMPLATE = """
         .tab {
             padding: 10px 20px; cursor: pointer; border-radius: 8px 8px 0 0;
             font-size: 14px; font-weight: 500; color: #888; transition: 0.2s;
+            text-decoration: none;
         }
         .tab:hover { color: #fff; background: #1a1d27; }
         .tab.active { color: #5dade2; background: #1a1d27; border-bottom: 2px solid #5dade2; }
@@ -125,6 +126,7 @@ TEMPLATE = """
         <div class="tab active" onclick="showTab('market')">Market Analysis</div>
         <div class="tab" onclick="showTab('health')">Pi Health</div>
         <div class="tab" onclick="showTab('system')">System Memory</div>
+        <div class="tab" onclick="showTab('usage')">Nia Usage</div>
     </div>
 
     <!-- Market Analysis Tab -->
@@ -230,6 +232,36 @@ TEMPLATE = """
             </div>
             {% endfor %}
         </div>
+    </div>
+
+    <!-- Usage Tab -->
+    <div id="usage" class="tab-content">
+        <h2>Nia Token Usage (Last 30 Days)</h2>
+        <p class="subtitle" style="margin-bottom: 20px;">Daily breakdown of API costs and agent activity.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Agent / Model</th>
+                    <th>Tokens In</th>
+                    <th>Tokens Out</th>
+                    <th>Estimated Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in claw_stats %}
+                <tr>
+                    <td>{{ row.day }}</td>
+                    <td><strong>{{ row.agent_label or 'Nia' }}</strong><br><span style="font-size: 11px; color: #666;">{{ row.model }}</span></td>
+                    <td>{{ "{:,}".format(row.t_in) }}</td>
+                    <td>{{ "{:,}".format(row.t_out) }}</td>
+                    <td style="color: #5dade2; font-weight: 600;">
+                        ${{ "%.2f"|format((row.t_in * 0.000000075) + (row.t_out * 0.0000003)) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
     <!-- File Modal -->
@@ -349,6 +381,14 @@ def index():
         LEFT JOIN (SELECT ticker, recent_analyst_calls_json FROM earnings_data GROUP BY ticker HAVING MAX(fetched_date)) e ON e.ticker = m.ticker
         ORDER BY m.ticker
     """).fetchall()
+
+    claw_stats = conn.execute("""
+        SELECT day, agent_label, model, sum(tokens_in) as t_in, sum(tokens_out) as t_out 
+        FROM claw_usage_v2 
+        GROUP BY day, agent_label, model 
+        ORDER BY day DESC LIMIT 50
+    """).fetchall()
+    
     conn.close()
 
     processed_data = []
@@ -359,6 +399,7 @@ def index():
         
     return render_template_string(TEMPLATE, 
                                   status_data=processed_data, 
+                                  claw_stats=claw_stats,
                                   all_tickers=all_tickers,
                                   system_files=system_files,
                                   hw=hardware_data,
