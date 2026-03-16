@@ -127,6 +127,7 @@ TEMPLATE = """
         <div class="tab" onclick="showTab('health')">Pi Health</div>
         <div class="tab" onclick="showTab('system')">System Memory</div>
         <div class="tab" onclick="showTab('usage')">Nia Usage</div>
+        <div class="tab" onclick="showTab('releases')">Releases</div>
     </div>
 
     <!-- Market Analysis Tab -->
@@ -264,7 +265,27 @@ TEMPLATE = """
         </table>
     </div>
 
-    <!-- File Modal -->
+    # Usage Tab content ...
+    
+    <!-- Releases Tab -->
+    <div id="releases" class="tab-content">
+        <h2>Project Releases</h2>
+        <p class="subtitle" style="margin-bottom: 20px;">Latest official versions on GitHub.</p>
+        <div class="file-list">
+            {% for r in releases %}
+            <div class="file-card" onclick="window.open('{{ r.url }}', '_blank')">
+                <h3>{{ r.name }}</h3>
+                <p style="font-size: 18px; color: #2ecc71; margin: 10px 0;">{{ r.version }}</p>
+                <p>Released: {{ r.date }}</p>
+                <span class="file-type">GITHUB RELEASE</span>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <button onclick="triggerUpdateReleases()" id="updateBtn">Check for Updates</button>
+        </div>
+    </div>
     <div id="fileModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -286,6 +307,19 @@ TEMPLATE = """
         const activeTabElement = Array.from(document.querySelectorAll('.tab')).find(t => t.innerText.toLowerCase().includes(tabId.replace('market', 'analysis').replace('system', 'memory')));
         if (activeTabElement) activeTabElement.classList.add('active');
         localStorage.setItem('activeTab', tabId);
+    }
+
+    function triggerUpdateReleases() {
+        const btn = document.getElementById('updateBtn');
+        btn.innerText = "Checking...";
+        btn.disabled = true;
+        fetch('/api/run/update-releases', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
+            });
     }
 
     // Restore active tab
@@ -389,6 +423,8 @@ def index():
         ORDER BY day DESC LIMIT 50
     """).fetchall()
     
+    releases = conn.execute("SELECT repo_name as name, version, title, datetime(release_date) as date, url FROM project_releases ORDER BY release_date DESC").fetchall()
+    
     conn.close()
 
     processed_data = []
@@ -400,6 +436,7 @@ def index():
     return render_template_string(TEMPLATE, 
                                   status_data=processed_data, 
                                   claw_stats=claw_stats,
+                                  releases=releases,
                                   all_tickers=all_tickers,
                                   system_files=system_files,
                                   hw=hardware_data,
@@ -496,6 +533,16 @@ def run_auditor():
         cmd = f"cd {BASE_DIR} && python3 scripts/data_auditor.py --repair"
         subprocess.Popen(cmd, shell=True)
         return jsonify({"status": "started", "message": "Data Auditor triggered in background."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/run/update-releases", methods=["POST"])
+def run_update_releases():
+    # Updates the release info from GitHub
+    try:
+        cmd = f"cd {BASE_DIR} && python3 scripts/update_releases.py"
+        subprocess.Popen(cmd, shell=True)
+        return jsonify({"status": "started", "message": "Release update triggered in background."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
