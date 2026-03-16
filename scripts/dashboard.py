@@ -489,5 +489,15 @@ def run_engine():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route("/api/run/auditor", methods=["POST"])
+def run_auditor():
+    # Runs the data integrity auditor with repair enabled
+    try:
+        cmd = f"cd {BASE_DIR} && python3 scripts/data_auditor.py --repair"
+        subprocess.Popen(cmd, shell=True)
+        return jsonify({"status": "started", "message": "Data Auditor triggered in background."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
