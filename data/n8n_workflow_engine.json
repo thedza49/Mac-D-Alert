@@ -1,0 +1,52 @@
+{
+  "id": "SJYBLfS3PhELOz0J",
+  "name": "Mac-D-Alert: Workflow B (The Engine - API Driven) (v1.3.0)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "45 13 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Schedule (1:45 PM PST)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:5000/api/run/engine",
+        "options": {}
+      },
+      "name": "Trigger Logic",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        250,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule (1:45 PM PST)": {
+      "main": [
+        [
+          {
+            "node": "Trigger Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

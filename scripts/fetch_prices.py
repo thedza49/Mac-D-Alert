@@ -59,6 +59,21 @@ def fetch_yahooquery(ticker: str) -> pd.DataFrame | None:
             if isinstance(df.index, pd.MultiIndex):
                 df = df.xs(ticker)
             
+            # Patch for Yahoo quirk: sometimes the last row (today) has NaN Close in '3y' period
+            # but is available in '1d' period or just needs to be handled.
+            if df['close'].isna().iloc[-1]:
+                try:
+                    latest = Ticker(ticker).history(period="1d")
+                    if latest is not None and not latest.empty:
+                        if isinstance(latest.index, pd.MultiIndex):
+                            latest = latest.xs(ticker)
+                        # Patch if we have a close
+                        if not pd.isna(latest['close'].iloc[0]):
+                            df.iloc[-1, df.columns.get_loc('close')] = latest['close'].iloc[0]
+                            log.info(f"{ticker}: Patched NaN close for {df.index[-1]}")
+                except Exception as patch_e:
+                    log.warning(f"{ticker}: Failed to patch NaN close: {patch_e}")
+
             df = df.rename(columns={
                 "open": "Open", 
                 "high": "High", 
