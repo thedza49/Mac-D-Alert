@@ -1,0 +1,52 @@
+{
+  "id": "bcMC27vAu842D8b6",
+  "name": "Mac-D-Alert: Workflow A (The Collector - API Driven) (v1.3.0)",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "hour": 13,
+              "minute": 30
+            }
+          ]
+        }
+      },
+      "name": "Schedule (1:30 PM PST)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:5000/api/run/collector",
+        "options": {}
+      },
+      "name": "Trigger Fetchers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        250,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule (1:30 PM PST)": {
+      "main": [
+        [
+          {
+            "node": "Trigger Fetchers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

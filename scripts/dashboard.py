@@ -138,7 +138,8 @@ TEMPLATE = """
                 <tr>
                     <th>Ticker</th>
                     <th>Price</th>
-                    <th>Data Date</th>
+                    <th>Signals Date</th>
+                    <th>Last Data</th>
                     <th>Backtesting</th>
                     <th>Analyst Sentiment</th>
                     <th>Phase</th>
@@ -154,6 +155,7 @@ TEMPLATE = """
                         </span>
                     </td>
                     <td style="font-size: 11px; color: #888;">{{ m.period_end_date }}</td>
+                    <td style="font-size: 11px; font-weight: 600; color: {{ '#2ecc71' if m.last_data_date == m.period_end_date else '#e67e22' }};">{{ m.last_data_date }}</td>
                     <td style="font-size: 11px; color: #888;">
                         Peak: <span class="macd-pos">+{{ "%.1f%%"|format(m.peak_gain_pct) if m.peak_gain_pct else '0%' }}</span>
                     </td>
@@ -402,6 +404,7 @@ def index():
 
     status_data = conn.execute("""
         SELECT m.ticker, m.current_phase, m.period_end_date,
+               (SELECT MAX(date) FROM daily_prices WHERE ticker = m.ticker) as last_data_date,
                p.close as current_price,
                ((p.close - prev.close) / prev.close) * 100 as pct_change,
                s.peak_gain_pct,
