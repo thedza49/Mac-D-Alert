@@ -254,12 +254,12 @@ TEMPLATE = """
             <tbody>
                 {% for row in claw_stats %}
                 <tr>
-                    <td>{{ row.day }}</td>
+                    <td><strong>{{ row.date_display }}</strong></td>
                     <td><strong>{{ row.agent_label or 'Nia' }}</strong><br><span style="font-size: 11px; color: #666;">{{ row.model }}</span></td>
                     <td>{{ "{:,}".format(row.t_in) }}</td>
                     <td>{{ "{:,}".format(row.t_out) }}</td>
                     <td style="color: #5dade2; font-weight: 600;">
-                        ${{ "%.2f"|format((row.t_in * 0.000000075) + (row.t_out * 0.0000003)) }}
+                        ${{ "%.2f"|format(row.est_cost) }}
                     </td>
                 </tr>
                 {% endfor %}
@@ -419,12 +419,39 @@ def index():
         ORDER BY m.ticker
     """).fetchall()
 
-    claw_stats = conn.execute("""
+    # Usage Tab content
+    claw_stats_raw = conn.execute("""
         SELECT day, agent_label, model, sum(tokens_in) as t_in, sum(tokens_out) as t_out 
         FROM claw_usage_v2 
         GROUP BY day, agent_label, model 
         ORDER BY day DESC LIMIT 50
     """).fetchall()
+
+    # Process Usage Data for display
+    usage_list = []
+    for row in claw_stats_raw:
+        d = dict(row)
+        # Format the date nicely: "Wednesday, Mar 18"
+        try:
+            dt = datetime.strptime(d["day"], "%Y-%m-%d")
+            d["date_display"] = dt.strftime("%A, %b %d")
+        except:
+            d["date_display"] = d["day"]
+        
+        # Simple dynamic cost calculation based on model
+        # Rates per 1M tokens
+        model_name = d["model"].lower()
+        if "flash" in model_name:
+            in_rate, out_rate = 0.075, 0.30
+        elif "qwen" in model_name or "coder" in model_name:
+            in_rate, out_rate = 0.50, 1.50
+        elif "plus" in model_name: # Researcher
+            in_rate, out_rate = 0.15, 0.60
+        else:
+            in_rate, out_rate = 0.20, 0.80
+            
+        d["est_cost"] = (d["t_in"] * in_rate / 1000000) + (d["t_out"] * out_rate / 1000000)
+        usage_list.append(d)
     
     releases = conn.execute("SELECT repo_name as name, version, title, datetime(release_date) as date, url FROM project_releases ORDER BY release_date DESC").fetchall()
     
@@ -438,7 +465,7 @@ def index():
         
     return render_template_string(TEMPLATE, 
                                   status_data=processed_data, 
-                                  claw_stats=claw_stats,
+                                  claw_stats=usage_list,
                                   releases=releases,
                                   all_tickers=all_tickers,
                                   system_files=system_files,
