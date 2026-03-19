@@ -18,7 +18,7 @@ def fetch_latest_releases():
     
     for repo in REPOS:
         try:
-            # Fetch latest release via GH API (old GH CLI doesn't support --json on release list)
+            # Use gh api since the installed version of gh is too old for --json on release list
             result = subprocess.run(
                 ["gh", "api", f"repos/{repo}/releases/latest", "--jq", "{tagName: .tag_name, name: .name, publishedAt: .published_at, url: .html_url}"],
                 capture_output=True, text=True, check=True
