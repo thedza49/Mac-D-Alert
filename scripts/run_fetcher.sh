@@ -2,7 +2,7 @@
 # run_fetcher.sh
 # Loads the FMP API key from .env and runs the hybrid price fetcher.
 
-SCRIPT_DIR="/home/daniel/Mac-D-Alert/scripts"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ENV_FILE="$SCRIPT_DIR/.env"
 
 if [ -f "$ENV_FILE" ]; then

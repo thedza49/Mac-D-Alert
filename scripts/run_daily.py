@@ -9,8 +9,8 @@ Runs the full daily pipeline in order:
   3. fetch_earnings.py  - pull analyst ratings and earnings dates
   4. signal_detector.py - detect signals and write to DB
 
-This script mirrors what the two n8n workflows will eventually do.
-Run it manually for testing, or call it from cron / n8n.
+This script ensures orchestration logic lives in code rather than
+complex n8n workflows, allowing for better error handling and sequence integrity.
 
 Usage:
     python3 run_daily.py              # run full pipeline
@@ -18,15 +18,17 @@ Usage:
 """
 
 import sys
+import os
 import time
 import logging
 import subprocess
+import fcntl
 from pathlib import Path
 from datetime import datetime
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
-BASE_DIR    = Path("/home/daniel/sovson-analytics")
-SCRIPTS_DIR = Path("/home/daniel/Mac-D-Alert/scripts")
+# ── Paths (Relative to script for repo-agnostic execution) ──────────────────
+SCRIPTS_DIR = Path(__file__).resolve().parent
+BASE_DIR    = SCRIPTS_DIR.parent
 LOG_DIR     = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -43,13 +45,15 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+# ── Lock file to prevent concurrent runs ──────────────────────────────────────
+LOCK_FILE = BASE_DIR / ".run_daily.lock"
+
 # ── Pipeline definition ───────────────────────────────────────────────────────
 # Each step: (label, script_name, required)
-# required=True means pipeline aborts if this step fails
 PIPELINE = [
     ("Fetch Prices",     "fetch_prices.py",    True),
     ("Calculate MACD",   "calculate_macd.py",  True),
-    ("Fetch Earnings",   "fetch_earnings.py",  False),  # non-fatal if Yahoo throttles
+    ("Fetch Earnings",   "fetch_earnings.py",  False),
     ("Signal Detector",  "signal_detector.py", True),
 ]
 
@@ -61,10 +65,7 @@ SIGNALS_ONLY_PIPELINE = [
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_script(label: str, script_name: str) -> bool:
-    """
-    Runs a single script as a subprocess.
-    Streams output in real time and returns True on success, False on failure.
-    """
+    """Runs a single script as a subprocess."""
     script_path = SCRIPTS_DIR / script_name
 
     if not script_path.exists():
@@ -78,10 +79,12 @@ def run_script(label: str, script_name: str) -> bool:
     start = time.time()
 
     try:
+        # Avoid shell=True for security and reliability
         result = subprocess.run(
             [sys.executable, str(script_path)],
-            capture_output=False,   # let output stream to terminal/log
+            capture_output=False,
             text=True,
+            cwd=BASE_DIR
         )
         elapsed = round(time.time() - start, 1)
 
@@ -110,13 +113,8 @@ def run_pipeline(steps: list) -> None:
             log.error(f"Required step '{label}' failed — aborting pipeline")
             break
 
-        if not success and not required:
-            log.warning(f"Optional step '{label}' failed — continuing anyway")
-
-        # Brief pause between steps
         time.sleep(1)
 
-    # ── Summary ───────────────────────────────────────────────────────────────
     elapsed = round(time.time() - total_start, 1)
     log.info(f"{'=' * 50}")
     log.info(f"PIPELINE SUMMARY ({elapsed}s total)")
@@ -141,14 +139,33 @@ def run_pipeline(steps: list) -> None:
 def main() -> None:
     signals_only = "--signals-only" in sys.argv
 
+    # ── Concurrency Check ─────────────────────────────────────────────────────
+    # Open the lock file in append mode to avoid truncating if we can't lock it
+    lock_file = open(LOCK_FILE, "a")
+    try:
+        fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError:
+        log.error("Another instance of run_daily.py is already running. Exiting.")
+        sys.exit(0)
+
     log.info(f"{'=' * 50}")
     log.info(f"Sovson Analytics — Daily Run")
     log.info(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S PST')}")
     log.info(f"Mode: {'signals only' if signals_only else 'full pipeline'}")
     log.info(f"{'=' * 50}")
 
-    steps = SIGNALS_ONLY_PIPELINE if signals_only else PIPELINE
-    run_pipeline(steps)
+    try:
+        # Write PID to lock file for debugging/info
+        lock_file.truncate(0)
+        lock_file.write(str(os.getpid()))
+        lock_file.flush()
+
+        steps = SIGNALS_ONLY_PIPELINE if signals_only else PIPELINE
+        run_pipeline(steps)
+    finally:
+        # Don't delete the lock file, just release the lock.
+        # This makes is_task_running in dashboard.py more reliable (always uses fcntl).
+        lock_file.close()
 
 
 if __name__ == "__main__":

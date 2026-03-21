@@ -4,7 +4,8 @@ import sqlite3
 import json
 from pathlib import Path
 
-DB_PATH = "/home/daniel/Mac-D-Alert/data/sovson_analytics.db"
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH  = BASE_DIR / "data" / "sovson_analytics.db"
 
 REPOS = [
     "thedza49/Mac-D-Alert",
