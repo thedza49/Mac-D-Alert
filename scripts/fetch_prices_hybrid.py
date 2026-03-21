@@ -22,7 +22,7 @@ import requests
 import pandas as pd
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-BASE_DIR = Path("/home/daniel/sovson-analytics")
+BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH  = BASE_DIR / "data" / "sovson_analytics.db"
 LOG_DIR  = BASE_DIR / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)

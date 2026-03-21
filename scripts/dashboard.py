@@ -532,46 +532,84 @@ def mark_signal_sent(signal_id):
     return jsonify({"status": "success"})
 
 import subprocess
+import sys
 
-# ... (inside dashboard.py)
+import fcntl
+
+# Use the same lock file as run_daily.py for consistency
+LOCK_FILE = BASE_DIR / ".run_daily.lock"
+
+def is_task_running():
+    """Checks if the daily pipeline is already running using file locking."""
+    try:
+        f = open(LOCK_FILE, "r")
+        try:
+            fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # If we reached here, we got the lock, so it's NOT running
+            fcntl.lockf(f, fcntl.LOCK_UN)
+            return False
+        except IOError:
+            # Could not acquire lock, so it IS running
+            return True
+        finally:
+            f.close()
+    except FileNotFoundError:
+        return False
+
+@app.route("/api/run/daily", methods=["POST"])
+def run_daily():
+    if is_task_running():
+        return jsonify({"status": "error", "message": "A background task is already running."}), 429
+
+    try:
+        # run_daily.py handles its own fcntl lock internally
+        subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "run_daily.py")], cwd=BASE_DIR)
+        return jsonify({"status": "started", "message": "Daily pipeline triggered in background."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/run/collector", methods=["POST"])
 def run_collector():
-    # Runs the data collection scripts
+    if is_task_running():
+        return jsonify({"status": "error", "message": "A background task is already running."}), 429
+    # Runs the data collection scripts sequentially
     try:
-        # Using full paths for safety in background process
-        cmd = f"cd {BASE_DIR} && python3 scripts/fetch_prices.py && python3 scripts/fetch_earnings.py"
-        subprocess.Popen(cmd, shell=True)
+        cmd = f"{sys.executable} scripts/fetch_prices.py && {sys.executable} scripts/fetch_earnings.py"
+        subprocess.Popen(cmd, shell=True, cwd=BASE_DIR)
         return jsonify({"status": "started", "message": "Collector scripts triggered in background."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/run/engine", methods=["POST"])
 def run_engine():
-    # Runs the calculation scripts
+    if is_task_running():
+        return jsonify({"status": "error", "message": "A background task is already running."}), 429
+    # Runs the calculation scripts sequentially
     try:
-        cmd = f"cd {BASE_DIR} && python3 scripts/calculate_macd.py && python3 scripts/signal_detector.py"
-        subprocess.Popen(cmd, shell=True)
+        cmd = f"{sys.executable} scripts/calculate_macd.py && {sys.executable} scripts/signal_detector.py"
+        subprocess.Popen(cmd, shell=True, cwd=BASE_DIR)
         return jsonify({"status": "started", "message": "Engine scripts triggered in background."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/run/auditor", methods=["POST"])
 def run_auditor():
+    if is_task_running():
+        return jsonify({"status": "error", "message": "A background task is already running."}), 429
     # Runs the data integrity auditor with repair enabled
     try:
-        cmd = f"cd {BASE_DIR} && python3 scripts/data_auditor.py --repair"
-        subprocess.Popen(cmd, shell=True)
+        subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "data_auditor.py"), "--repair"], cwd=BASE_DIR)
         return jsonify({"status": "started", "message": "Data Auditor triggered in background."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/run/update-releases", methods=["POST"])
 def run_update_releases():
+    if is_task_running():
+        return jsonify({"status": "error", "message": "A background task is already running."}), 429
     # Updates the release info from GitHub
     try:
-        cmd = f"cd {BASE_DIR} && python3 scripts/update_releases.py"
-        subprocess.Popen(cmd, shell=True)
+        subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "update_releases.py")], cwd=BASE_DIR)
         return jsonify({"status": "started", "message": "Release update triggered in background."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

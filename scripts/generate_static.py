@@ -5,11 +5,13 @@ import matplotlib.pyplot as plt
 import os
 import sys
 import subprocess
+from pathlib import Path
 from datetime import datetime
 
 def generate_static_graph(ticker='AAPL'):
-    db_path = '/home/daniel/Mac-D-Alert/data/sovson_analytics.db'
-    output_dir = '/home/daniel/Mac-D-Alert/scripts/static'
+    base_dir = Path(__file__).resolve().parent.parent
+    db_path = base_dir / 'data' / 'sovson_analytics.db'
+    output_dir = base_dir / 'scripts' / 'static'
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, f'graph_{ticker}.png')
 
@@ -49,7 +51,7 @@ def generate_static_graph(ticker='AAPL'):
         conn.close() # Close to avoid lock during subprocess
         try:
             # Trigger history scan in background
-            subprocess.run([sys.executable, '/home/daniel/Mac-D-Alert/scripts/signal_detector.py', ticker, '--history'], check=True)
+            subprocess.run([sys.executable, str(base_dir / 'scripts' / 'signal_detector.py'), ticker, '--history'], check=True)
             # Re-fetch signals after repair
             conn = sqlite3.connect(db_path)
             sdf = pd.read_sql_query(sig_query, conn)
@@ -146,8 +148,7 @@ def generate_static_graph(ticker='AAPL'):
     print(f"Static graph generated with watermark at: {output_path}")
 
 if __name__ == "__main__":
-    import sys
-    db_path = '/home/daniel/Mac-D-Alert/data/sovson_analytics.db'
+    db_path = Path(__file__).resolve().parent.parent / 'data' / 'sovson_analytics.db'
     conn = sqlite3.connect(db_path)
     if len(sys.argv) > 1:
         tickers = sys.argv[1:]

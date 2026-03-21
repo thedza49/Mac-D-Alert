@@ -1,19 +1,19 @@
 {
   "id": "bcMC27vAu842D8b6",
-  "name": "Mac-D-Alert: Workflow A (The Collector - API Driven) (v1.3.0)",
+  "name": "Mac-D-Alert: Daily Pipeline Backup (v1.5.0)",
   "nodes": [
     {
       "parameters": {
-        "triggerTimes": {
-          "item": [
+        "rule": {
+          "interval": [
             {
-              "hour": 13,
-              "minute": 30
+              "field": "cronExpression",
+              "expression": "15 21 * * 1-5"
             }
           ]
         }
       },
-      "name": "Schedule (1:30 PM PST)",
+      "name": "Schedule (1:15 PM PST / 21:15 UTC)",
       "type": "n8n-nodes-base.cron",
       "typeVersion": 1,
       "position": [
@@ -24,10 +24,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://172.17.0.1:5000/api/run/collector",
+        "url": "http://172.17.0.1:5000/api/run/daily",
         "options": {}
       },
-      "name": "Trigger Fetchers",
+      "name": "Trigger Daily Pipeline",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -37,11 +37,11 @@
     }
   ],
   "connections": {
-    "Schedule (1:30 PM PST)": {
+    "Schedule (1:15 PM PST / 21:15 UTC)": {
       "main": [
         [
           {
-            "node": "Trigger Fetchers",
+            "node": "Trigger Daily Pipeline",
             "type": "main",
             "index": 0
           }

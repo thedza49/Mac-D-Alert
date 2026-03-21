@@ -6,13 +6,15 @@ from datetime import datetime
 from pathlib import Path
 
 # Paths
-DB_PATH = "/home/daniel/Mac-D-Alert/data/sovson_analytics.db"
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH  = BASE_DIR / "data" / "sovson_analytics.db"
 
 def get_claw_sessions():
     """Runs the OpenClaw CLI to get session data as JSON."""
     try:
-        # Absolute path to openclaw to ensure it runs in cron environment
-        openclaw_path = "/home/daniel/.npm-global/bin/openclaw"
+        # Check if openclaw is in PATH, otherwise fallback to common location
+        import shutil
+        openclaw_path = shutil.which("openclaw") or "/home/daniel/.npm-global/bin/openclaw"
         # We use --all-agents to catch Coder, Researcher, and Main Nia
         result = subprocess.run([openclaw_path, 'sessions', '--all-agents', '--json'], 
                                capture_output=True, text=True, check=True)

@@ -1,9 +1,10 @@
 from flask import Flask, jsonify
 import subprocess
 import os
+from pathlib import Path
 
 app = Flask(__name__)
-BASE_DIR = "/home/daniel/Mac-D-Alert"
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 @app.route("/run/collector", methods=["POST"])
 def run_collector():

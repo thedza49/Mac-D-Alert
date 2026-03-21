@@ -6,8 +6,10 @@ import os
 
 def generate_example_graph(ticker='AAPL'):
     # 1. Setup paths
-    db_path = '/home/daniel/sovson-analytics/data/sovson_analytics.db'
-    output_dir = '/home/daniel/Mac-D-Alert/scripts/static'
+    from pathlib import Path
+    base_dir = Path(__file__).resolve().parent.parent
+    db_path = base_dir / 'data' / 'sovson_analytics.db'
+    output_dir = base_dir / 'scripts' / 'static'
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, f'example_graph_{ticker}.html')
 
