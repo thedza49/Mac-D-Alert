@@ -535,6 +535,16 @@ import subprocess
 
 # ... (inside dashboard.py)
 
+@app.route("/api/run/daily", methods=["POST"])
+def run_daily():
+    # Runs the full daily pipeline (fetch, macd, earnings, signals)
+    try:
+        cmd = f"cd {BASE_DIR} && python3 scripts/run_daily.py"
+        subprocess.Popen(cmd, shell=True)
+        return jsonify({"status": "started", "message": "Daily pipeline triggered in background."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route("/api/run/collector", methods=["POST"])
 def run_collector():
     # Runs the data collection scripts
