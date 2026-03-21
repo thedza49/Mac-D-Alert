@@ -539,8 +539,8 @@ import subprocess
 def run_daily():
     # Runs the full daily pipeline (fetch, macd, earnings, signals)
     try:
-        cmd = f"cd {BASE_DIR} && python3 scripts/run_daily.py"
-        subprocess.Popen(cmd, shell=True)
+        # Use a list of arguments and set cwd explicitly for safety
+        subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "run_daily.py")], cwd=BASE_DIR)
         return jsonify({"status": "started", "message": "Daily pipeline triggered in background."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -549,9 +549,8 @@ def run_daily():
 def run_collector():
     # Runs the data collection scripts
     try:
-        # Using full paths for safety in background process
-        cmd = f"cd {BASE_DIR} && python3 scripts/fetch_prices.py && python3 scripts/fetch_earnings.py"
-        subprocess.Popen(cmd, shell=True)
+        subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "fetch_prices.py")], cwd=BASE_DIR)
+        subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "fetch_earnings.py")], cwd=BASE_DIR)
         return jsonify({"status": "started", "message": "Collector scripts triggered in background."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -560,8 +559,8 @@ def run_collector():
 def run_engine():
     # Runs the calculation scripts
     try:
-        cmd = f"cd {BASE_DIR} && python3 scripts/calculate_macd.py && python3 scripts/signal_detector.py"
-        subprocess.Popen(cmd, shell=True)
+        subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "calculate_macd.py")], cwd=BASE_DIR)
+        subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "signal_detector.py")], cwd=BASE_DIR)
         return jsonify({"status": "started", "message": "Engine scripts triggered in background."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -570,8 +569,7 @@ def run_engine():
 def run_auditor():
     # Runs the data integrity auditor with repair enabled
     try:
-        cmd = f"cd {BASE_DIR} && python3 scripts/data_auditor.py --repair"
-        subprocess.Popen(cmd, shell=True)
+        subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "data_auditor.py"), "--repair"], cwd=BASE_DIR)
         return jsonify({"status": "started", "message": "Data Auditor triggered in background."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -580,8 +578,7 @@ def run_auditor():
 def run_update_releases():
     # Updates the release info from GitHub
     try:
-        cmd = f"cd {BASE_DIR} && python3 scripts/update_releases.py"
-        subprocess.Popen(cmd, shell=True)
+        subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "update_releases.py")], cwd=BASE_DIR)
         return jsonify({"status": "started", "message": "Release update triggered in background."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

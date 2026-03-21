@@ -1,6 +1,6 @@
 {
   "id": "SJYBLfS3PhELOz0J",
-  "name": "Mac-D-Alert: Workflow B (The Engine - API Driven) (v1.3.0)",
+  "name": "Mac-D-Alert: Daily Pipeline Orchestrator (v1.4.0)",
   "nodes": [
     {
       "parameters": {
@@ -8,12 +8,12 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "45 13 * * 1-5"
+              "expression": "45 20 * * 1-5"
             }
           ]
         }
       },
-      "name": "Schedule (1:45 PM PST)",
+      "name": "Schedule (1:45 PM PST / 20:45 UTC)",
       "type": "n8n-nodes-base.cron",
       "typeVersion": 1,
       "position": [
@@ -24,10 +24,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://172.17.0.1:5000/api/run/engine",
+        "url": "http://172.17.0.1:5000/api/run/daily",
         "options": {}
       },
-      "name": "Trigger Logic",
+      "name": "Trigger Daily Pipeline",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
@@ -37,11 +37,11 @@
     }
   ],
   "connections": {
-    "Schedule (1:45 PM PST)": {
+    "Schedule (1:45 PM PST / 20:45 UTC)": {
       "main": [
         [
           {
-            "node": "Trigger Logic",
+            "node": "Trigger Daily Pipeline",
             "type": "main",
             "index": 0
           }
