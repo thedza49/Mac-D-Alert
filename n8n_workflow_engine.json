@@ -1,6 +1,6 @@
 {
   "id": "SJYBLfS3PhELOz0J",
-  "name": "Mac-D-Alert: Daily Pipeline Orchestrator (v1.4.0)",
+  "name": "Mac-D-Alert: Daily Pipeline Orchestrator (v1.5.0)",
   "nodes": [
     {
       "parameters": {
@@ -8,12 +8,12 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "45 20 * * 1-5"
+              "expression": "45 21 * * 1-5"
             }
           ]
         }
       },
-      "name": "Schedule (1:45 PM PST / 20:45 UTC)",
+      "name": "Schedule (1:45 PM PST / 21:45 UTC)",
       "type": "n8n-nodes-base.cron",
       "typeVersion": 1,
       "position": [
@@ -37,7 +37,7 @@
     }
   ],
   "connections": {
-    "Schedule (1:45 PM PST / 20:45 UTC)": {
+    "Schedule (1:45 PM PST / 21:45 UTC)": {
       "main": [
         [
           {

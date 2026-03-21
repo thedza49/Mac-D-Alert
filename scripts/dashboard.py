@@ -532,14 +532,30 @@ def mark_signal_sent(signal_id):
     return jsonify({"status": "success"})
 
 import subprocess
+import sys
 
-# ... (inside dashboard.py)
+# A simple file-based lock for background tasks
+TASK_LOCK_FILE = BASE_DIR / ".dashboard_task.lock"
+
+def is_task_running():
+    return TASK_LOCK_FILE.exists()
+
+def acquire_task_lock():
+    TASK_LOCK_FILE.touch()
+
+def release_task_lock():
+    if TASK_LOCK_FILE.exists():
+        TASK_LOCK_FILE.unlink()
 
 @app.route("/api/run/daily", methods=["POST"])
 def run_daily():
-    # Runs the full daily pipeline (fetch, macd, earnings, signals)
+    if is_task_running():
+        return jsonify({"status": "error", "message": "Another background task is already running."}), 429
+    
     try:
-        # Use a list of arguments and set cwd explicitly for safety
+        # Popen doesn't wait, so we need a way to release the lock. 
+        # For simplicity in this architectural fix, we'll let run_daily.py handle its own lock,
+        # but the dashboard can prevent immediate double-triggers.
         subprocess.Popen([sys.executable, str(BASE_DIR / "scripts" / "run_daily.py")], cwd=BASE_DIR)
         return jsonify({"status": "started", "message": "Daily pipeline triggered in background."})
     except Exception as e:
