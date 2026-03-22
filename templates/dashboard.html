@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovson Analytics</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0f1117;
+            color: #e0e0e0;
+            padding: 24px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        h1 { font-size: 22px; font-weight: 600; color: #ffffff; margin-bottom: 4px; }
+        .subtitle { font-size: 13px; color: #666; margin-bottom: 28px; }
+        h2 { font-size: 14px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.08em; margin: 28px 0 12px; }
+        
+        /* Tabs */
+        .tabs {
+            display: flex; gap: 4px; border-bottom: 1px solid #2a2d3a; margin-bottom: 24px;
+        }
+        .tab {
+            padding: 10px 20px; cursor: pointer; border-radius: 8px 8px 0 0;
+            font-size: 14px; font-weight: 500; color: #888; transition: 0.2s;
+            text-decoration: none;
+        }
+        .tab:hover { color: #fff; background: #1a1d27; }
+        .tab.active { color: #5dade2; background: #1a1d27; border-bottom: 2px solid #5dade2; }
+        
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
+        thead th {
+            text-align: left; padding: 8px 12px; background: #1a1d27; color: #888;
+            font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em;
+            border-bottom: 1px solid #2a2d3a;
+        }
+        tbody tr { border-bottom: 1px solid #1e2130; }
+        tbody td { padding: 10px 12px; vertical-align: middle; }
+        
+        .badge { display: inline-block; padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        .badge-BUY { background: #0d3320; color: #2ecc71; }
+        .badge-APPROACHING_BUY { background: #1a3520; color: #7dcea0; }
+        .badge-SELL { background: #3d0d0d; color: #e74c3c; }
+        .badge-NEUTRAL { background: #1e2130; color: #666; }
+        
+        .macd-pos { color: #2ecc71; }
+        .macd-neg { color: #e74c3c; }
+
+        .evolution-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #2a2d3a;
+        }
+        .evolution-item {
+            background: #1a1d27;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #2a2d3a;
+        }
+        .evolution-item h4 {
+            font-size: 11px;
+            color: #5dade2;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .evolution-metrics {
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .management-box { background: #1a1d27; padding: 20px; border-radius: 8px; margin-bottom: 32px; border: 1px solid #2a2d3a; }
+        .form-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        input[type="text"] { background: #0f1117; border: 1px solid #3d4255; color: #fff; padding: 8px 12px; border-radius: 4px; font-size: 13px; outline: none; }
+        button { background: #5dade2; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .btn-remove { background: #3d0d0d; color: #e74c3c; padding: 4px 8px; font-size: 11px; margin-left: 10px; }
+        .ticker-pill { display: inline-flex; align-items: center; background: #2a2d3a; padding: 4px 10px; border-radius: 100px; margin-right: 8px; margin-bottom: 8px; font-size: 12px; font-weight: 500; }
+        
+        /* File Cards for Releases */
+        .file-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 32px; }
+        .file-card { background: #1a1d27; padding: 16px; border-radius: 8px; border: 1px solid #2a2d3a; cursor: pointer; transition: 0.2s; }
+        .file-card:hover { border-color: #5dade2; background: #212532; }
+        .file-card h3 { font-size: 14px; margin-bottom: 6px; color: #fff; }
+        .file-card p { font-size: 12px; color: #666; line-height: 1.4; }
+        .file-type { font-size: 10px; text-transform: uppercase; color: #5dade2; margin-top: 8px; display: block; }
+        
+        .refresh { font-size: 12px; color: #555; margin-top: 24px; }
+        .refresh a { color: #5dade2; text-decoration: none; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Sovson Analytics</h1>
+    <p class="subtitle">Updated: {{ now }}</p>
+
+    <div class="tabs">
+        <div class="tab active">Market Analysis</div>
+    </div>
+
+    <!-- Market Analysis Tab -->
+    <div id="market" class="tab-content active">
+        <h2>Market Status & Signals</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th>Signals Date</th>
+                    <th>Last Data</th>
+                    <th>Backtesting</th>
+                    <th>Analyst Sentiment</th>
+                    <th>Phase</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in status_data %}
+                <tr>
+                    <td><strong>{{ m.ticker }}</strong></td>
+                    <td>{{ "$%.2f"|format(m.current_price) if m.current_price else '—' }}<br>
+                        <span class="{{ 'macd-pos' if m.pct_change and m.pct_change > 0 else 'macd-neg' }}" style="font-size: 11px;">
+                            {{ "%+.2f%%"|format(m.pct_change) if m.pct_change else '—' }}
+                        </span>
+                    </td>
+                    <td style="font-size: 11px; color: #888;">{{ m.period_end_date }}</td>
+                    <td style="font-size: 11px; font-weight: 600; color: {{ '#2ecc71' if m.last_data_date == m.period_end_date else '#e67e22' }};">{{ m.last_data_date }}</td>
+                    <td style="font-size: 11px; color: #888;">
+                        Peak: <span class="macd-pos">+{{ "%.1f%%"|format(m.peak_gain_pct) if m.peak_gain_pct else '0%' }}</span>
+                    </td>
+                    <td>
+                        {% for c in m.analyst_calls[:1] %}
+                            <span style="font-size:11px; color:#aaa;">{{ c.firm }}: {{ c.action }}</span>
+                        {% endfor %}
+                    </td>
+                    <td><span class="badge badge-{{ m.current_phase or 'NEUTRAL' }}">{{ (m.current_phase or 'NEUTRAL').replace('_', ' ') }}</span></td>
+                </tr>
+                <tr>
+                    <td colspan="7" style="padding: 0; border-bottom: none;">
+                        <div style="background: #111; padding: 10px; border-radius: 4px; margin: 5px 12px 15px;">
+                            <img src="/static/graph_{{ m.ticker }}.png" alt="MACD Graph for {{ m.ticker }}" style="width: 100%; max-width: 800px; border-radius: 4px; border: 1px solid #2a2d3a;">
+                            
+                            {% if m.evolution %}
+                            <div class="evolution-container">
+                                {% for trade in m.evolution %}
+                                <div class="evolution-item">
+                                    <h4>Trade {{ loop.index }} ({{ trade.signal_date }})</h4>
+                                    <div class="evolution-metrics">
+                                        <div style="color: #fff; font-weight: 500;">BUY ${{ "%.2f"|format(trade.buy_price) }}</div>
+                                        <div>Peak: <span class="{{ 'macd-pos' if trade.peak_profit >= 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(trade.peak_profit * 100) }}</span> | {{ trade.days_to_peak:+d }}d</div>
+                                        <div>Final: <span class="{{ 'macd-pos' if trade.captured_profit >= 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(trade.captured_profit * 100) }}</span> | {{ trade.days_to_exit:+d }}d</div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Ticker Management</h2>
+        <div class="management-box">
+            <form action="/api/tickers/add" method="POST" class="form-group">
+                <input type="text" name="ticker" placeholder="Enter Ticker" required style="text-transform: uppercase;">
+                <button type="submit">Add</button>
+            </form>
+            {% for t in all_tickers %}
+                <div class="ticker-pill">
+                    {{ t.ticker }}
+                    <form action="/api/tickers/remove/{{ t.ticker }}" method="POST" style="display:inline;">
+                        <button type="submit" class="btn-remove">×</button>
+                    </form>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <p class="refresh">Auto-refreshes every 5 min · <a href="/">Refresh now</a></p>
+</div>
+
+<script>
+    setTimeout(() => location.reload(), 300000);
+</script>
+</body>
+</html>

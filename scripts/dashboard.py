@@ -28,6 +28,65 @@ def get_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def get_signal_evolution(conn, ticker, count=3):
+    """
+    Fetch the last `count` completed trades for a ticker.
+    """
+    trades = conn.execute("""
+        SELECT 
+            s.signal_date, 
+            tl.buy_price, 
+            tl.peak_profit, 
+            s.days_to_peak, 
+            tl.captured_profit, 
+            s.days_to_exit
+        FROM trade_lifecycles tl
+        JOIN signals s ON tl.buy_signal_id = s.id
+        WHERE tl.ticker = ?
+        ORDER BY s.signal_date DESC
+        LIMIT ?
+    """, (ticker, count)).fetchall()
+    
+    return [dict(t) for t in trades]
+
+def get_ansi_lifecycle_text(conn, ticker, count=3):
+    """
+    Generate a formatted string with ANSI colors for Discord.
+    """
+    trades = get_signal_evolution(conn, ticker, count)
+
+    if not trades:
+        return "```ansi\n\u001b[31mNo trade history available.\u001b[0m\n```"
+
+    lines = ["```ansi"]
+    for i, t in enumerate(trades):
+        # Format date: Jan 10
+        try:
+            dt = datetime.strptime(t["signal_date"], "%Y-%m-%d")
+            date_str = dt.strftime("%b %d")
+        except:
+            date_str = t["signal_date"]
+
+        lines.append(f"Trade {i+1} ({date_str}) | BUY ${t['buy_price']:.2f}")
+        
+        # Peak
+        peak_val = t['peak_profit'] if t['peak_profit'] is not None else 0
+        peak_days = t['days_to_peak'] if t['days_to_peak'] is not None else 0
+        peak_color = "\u001b[32m" if peak_val >= 0 else "\u001b[31m"
+        lines.append(f"🚀 Peak: {peak_color}{peak_val*100:+.1f}%\u001b[0m | {peak_days:+d}d")
+        
+        # Final
+        final_val = t['captured_profit'] if t['captured_profit'] is not None else 0
+        final_days = t['days_to_exit'] if t['days_to_exit'] is not None else 0
+        final_color = "\u001b[32m" if final_val >= 0 else "\u001b[31m"
+        lines.append(f"🏁 Final: {final_color}{final_val*100:+.1f}%\u001b[0m | {final_days:+d}d")
+        
+        if i < len(trades) - 1:
+            lines.append("") # Spacer
+            
+    lines.append("```")
+    return "\n".join(lines)
+
 def get_ticker_lifecycle_summary(conn, ticker):
     """
     Aggregate metrics from trade_lifecycles for a specific ticker.
@@ -84,6 +143,7 @@ def index():
     for r in status_data:
         d = dict(r)
         d["analyst_calls"] = json.loads(d["recent_analyst_calls_json"]) if d.get("recent_analyst_calls_json") else []
+        d["evolution"] = get_signal_evolution(conn, d["ticker"])
         processed_data.append(d)
         
     return render_template('dashboard.html', 
@@ -127,7 +187,7 @@ def get_unsent_signals():
     for s in signals:
         d = dict(s)
         d["analysts"] = json.loads(d["recent_analyst_calls_json"]) if d.get("recent_analyst_calls_json") else []
-        d["lifecycle_text"] = get_ticker_lifecycle_summary(conn, s["ticker"])
+        d["lifecycle_text"] = get_ansi_lifecycle_text(conn, s["ticker"])
         results.append(d)
         
     conn.close()
