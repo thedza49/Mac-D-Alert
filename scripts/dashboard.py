@@ -137,14 +137,14 @@ def index():
         ORDER BY m.ticker
     """).fetchall()
 
-    conn.close()
-
     processed_data = []
     for r in status_data:
         d = dict(r)
         d["analyst_calls"] = json.loads(d["recent_analyst_calls_json"]) if d.get("recent_analyst_calls_json") else []
         d["evolution"] = get_signal_evolution(conn, d["ticker"])
         processed_data.append(d)
+
+    conn.close()
         
     return render_template('dashboard.html', 
                                   status_data=processed_data, 
