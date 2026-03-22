@@ -1,5 +1,3 @@
-
-
 #!/usr/bin/env python3
 import sqlite3
 from pathlib import Path
@@ -130,6 +128,25 @@ def create_database() -> None:
     CREATE INDEX IF NOT EXISTS idx_signals_date ON signals(signal_date);
     CREATE INDEX IF NOT EXISTS idx_signals_type ON signals(signal_type);
     CREATE INDEX IF NOT EXISTS idx_signals_ticker_type ON signals(ticker, signal_type);
+
+    CREATE TABLE IF NOT EXISTS trade_lifecycles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticker TEXT NOT NULL,
+        buy_signal_id INTEGER NOT NULL,
+        sell_signal_id INTEGER NOT NULL,
+        buy_price REAL NOT NULL,
+        sell_price REAL NOT NULL,
+        apex_price REAL NOT NULL,
+        captured_profit REAL NOT NULL,
+        peak_profit REAL NOT NULL,
+        capture_efficiency REAL NOT NULL,
+        is_win INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (ticker) REFERENCES tickers(ticker),
+        FOREIGN KEY (buy_signal_id) REFERENCES signals(id),
+        FOREIGN KEY (sell_signal_id) REFERENCES signals(id),
+        UNIQUE(buy_signal_id, sell_signal_id)
+    );
     ''')
 
     conn.commit()
