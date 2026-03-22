@@ -1,6 +1,6 @@
 {
   "id": "KtzdQJuF5FbvvDM3",
-  "name": "Mac-D-Alert: Workflow C (Discord Notifier) (v1.3.0)",
+  "name": "Mac-D-Alert: Workflow C (Discord Notifier) (v1.6.0)",
   "nodes": [
     {
       "parameters": {
@@ -54,7 +54,7 @@
           "parameter": [
             {
               "name": "content",
-              "value": "=🚨 **{{$node[\"Split Signals\"].json[\"ticker\"]}} {{$node[\"Split Signals\"].json[\"signal_type\"]}}** Detected!\n💰 Price: **${{$node[\"Split Signals\"].json[\"price_at_signal\"]}}**\n📊 Win Rate: **{{$node[\"Split Signals\"].json[\"win_rate\"].toFixed(0)}}%**\n📈 Avg Peak: **+{{$node[\"Split Signals\"].json[\"avg_peak\"].toFixed(1)}}%**\n🔗 [View Graph](http://raspberrypi.local:5000/static/graph_{{$node[\"Split Signals\"].json[\"ticker\"]}}.png)"
+              "value": "=🚨 **{{$node[\"Split Signals\"].json[\"ticker\"]}} {{$node[\"Split Signals\"].json[\"signal_type\"]}}** Detected!\n💰 Price: **${{$node[\"Split Signals\"].json[\"price_at_signal\"]}}**\n📊 History (Win Rate: **{{$node[\"Split Signals\"].json[\"win_rate\"].toFixed(0)}}%**):\n{{$node[\"Split Signals\"].json[\"lifecycle_text\"]}}\n🔗 [View Scorecard](http://192.168.1.152:5000)"
             }
           ]
         },
