@@ -116,7 +116,7 @@ def get_latest_price(conn: sqlite3.Connection, ticker: str, date_str: str = None
     
     row = conn.execute(
         """
-        SELECT close, volume, ma_50d, volume_5d_avg, 
+        SELECT close, volume, 
                ha_open, ha_high, ha_low, ha_close
         FROM daily_prices
         WHERE ticker = ? AND date <= ?

@@ -34,20 +34,50 @@ def get_signal_evolution(conn, ticker, count=3):
     """
     trades = conn.execute("""
         SELECT 
-            s.signal_date, 
+            s.signal_date as buy_date, 
+            s_exit.signal_date as exit_date,
             tl.buy_price, 
             tl.peak_profit, 
             s.days_to_peak, 
             tl.captured_profit, 
-            s.days_to_exit
+            s.days_to_exit,
+            ap.signal_date as approaching_sell_date,
+            ap.price_at_signal as approaching_sell_price
         FROM trade_lifecycles tl
         JOIN signals s ON tl.buy_signal_id = s.id
+        LEFT JOIN signals s_exit ON tl.sell_signal_id = s_exit.id
+        LEFT JOIN (
+            SELECT ticker, signal_date, price_at_signal 
+            FROM signals 
+            WHERE signal_type = 'APPROACHING_SELL'
+        ) ap ON ap.ticker = tl.ticker 
+          AND ap.signal_date >= s.signal_date 
+          AND (s_exit.signal_date IS NULL OR ap.signal_date <= s_exit.signal_date)
         WHERE tl.ticker = ?
+        GROUP BY tl.buy_signal_id -- Ensure one row per trade if multiple approaching signals
         ORDER BY s.signal_date DESC
         LIMIT ?
     """, (ticker, count)).fetchall()
     
-    return [dict(t) for t in trades]
+    results = []
+    for t in trades:
+        d = dict(t)
+        # Calculate approaching sell metrics
+        if d["approaching_sell_date"]:
+            try:
+                b_dt = datetime.strptime(d["buy_date"], "%Y-%m-%d")
+                a_dt = datetime.strptime(d["approaching_sell_date"], "%Y-%m-%d")
+                d["days_to_approaching_sell"] = (a_dt - b_dt).days
+                d["approaching_sell_profit"] = (d["approaching_sell_price"] - d["buy_price"]) / d["buy_price"]
+            except:
+                d["days_to_approaching_sell"] = None
+                d["approaching_sell_profit"] = None
+        else:
+            d["days_to_approaching_sell"] = None
+            d["approaching_sell_profit"] = None
+        results.append(d)
+        
+    return results
 
 def get_ansi_lifecycle_text(conn, ticker, count=3):
     """
@@ -60,26 +90,35 @@ def get_ansi_lifecycle_text(conn, ticker, count=3):
 
     lines = ["```ansi"]
     for i, t in enumerate(trades):
-        # Format date: Jan 10
+        # Format date
         try:
-            dt = datetime.strptime(t["signal_date"], "%Y-%m-%d")
-            date_str = dt.strftime("%b %d")
+            dt = datetime.strptime(t["buy_date"], "%Y-%m-%d")
+            date_str = dt.strftime("%Y-%m-%d")
         except:
-            date_str = t["signal_date"]
+            date_str = t["buy_date"]
 
-        lines.append(f"Trade {i+1} ({date_str}) | BUY ${t['buy_price']:.2f}")
+        lines.append(f"Trade {i+1} ({date_str})")
+        lines.append(f"BUY ${t['buy_price']:.2f}")
         
         # Peak
         peak_val = t['peak_profit'] if t['peak_profit'] is not None else 0
         peak_days = t['days_to_peak'] if t['days_to_peak'] is not None else 0
         peak_color = "\u001b[32m" if peak_val >= 0 else "\u001b[31m"
-        lines.append(f"🚀 Peak: {peak_color}{peak_val*100:+.1f}%\u001b[0m | {peak_days:+d}d")
+        lines.append(f"Peak: {peak_color}{peak_val*100:+.1f}%\u001b[0m | {peak_days:+d}d")
+
+        # Approaching Sell
+        if t['days_to_approaching_sell'] is not None:
+            a_val = t['approaching_sell_profit'] or 0
+            a_color = "\u001b[32m" if a_val >= 0 else "\u001b[31m"
+            lines.append(f"Approaching sell: {a_color}{a_val*100:+.1f}%\u001b[0m | {t['days_to_approaching_sell']:+d}d")
+        else:
+            lines.append(f"Approaching sell: na")
         
         # Final
         final_val = t['captured_profit'] if t['captured_profit'] is not None else 0
         final_days = t['days_to_exit'] if t['days_to_exit'] is not None else 0
         final_color = "\u001b[32m" if final_val >= 0 else "\u001b[31m"
-        lines.append(f"🏁 Final: {final_color}{final_val*100:+.1f}%\u001b[0m | {final_days:+d}d")
+        lines.append(f"Final Sell: {final_color}{final_val*100:+.1f}%\u001b[0m | {final_days:+d}d")
         
         if i < len(trades) - 1:
             lines.append("") # Spacer
@@ -120,6 +159,30 @@ def index():
     conn = get_connection()
     all_tickers = conn.execute("SELECT ticker FROM tickers WHERE active = 1 ORDER BY ticker").fetchall()
     
+    # --- 1. Aggregated Scorecard ---
+    scorecard = []
+    for t in all_tickers:
+        ticker = t["ticker"]
+        metrics = conn.execute("""
+            SELECT 
+                COUNT(*) as total_trades,
+                AVG(is_win) * 100 as win_rate,
+                AVG(peak_profit) * 100 as avg_apex,
+                AVG(captured_profit) * 100 as avg_final
+            FROM trade_lifecycles
+            WHERE ticker = ?
+        """, (ticker,)).fetchone()
+        
+        if metrics and metrics["total_trades"] > 0:
+            scorecard.append({
+                "ticker": ticker,
+                "win_rate": f"{metrics['win_rate']:.0f}%",
+                "avg_apex": f"{metrics['avg_apex']:+.1f}%",
+                "avg_final": f"{metrics['avg_final']:+.1f}%",
+                "total": metrics["total_trades"]
+            })
+
+    # --- 2. Existing Status Data ---
     status_data = conn.execute("""
         SELECT m.ticker, m.current_phase, m.period_end_date,
                (SELECT MAX(date) FROM daily_prices WHERE ticker = m.ticker) as last_data_date,
@@ -147,6 +210,7 @@ def index():
     conn.close()
         
     return render_template('dashboard.html', 
+                                  scorecard=scorecard,
                                   status_data=processed_data, 
                                   all_tickers=all_tickers,
                                   now=datetime.now().strftime("%B %d, %Y %I:%M %p"))

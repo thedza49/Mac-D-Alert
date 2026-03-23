@@ -40,7 +40,7 @@ def generate_static_graph(ticker='AAPL'):
     SELECT signal_date, signal_type, price_at_signal
     FROM signals
     WHERE ticker = '{ticker}'
-    ORDER BY signal_date DESC LIMIT 50
+    ORDER BY signal_date DESC LIMIT 100
     """
     sdf = pd.read_sql_query(sig_query, conn)
     
@@ -105,16 +105,19 @@ def generate_static_graph(ticker='AAPL'):
                                         marker=cfg['marker'], color=cfg['color'], label=cfg['label']))
 
     # Plot
-    s = mpf.make_mpf_style(base_mpf_style='charles', gridcolor='#2a2d3a', facecolor='#0f1117', edgecolor='#2a2d3a')
+    s = mpf.make_mpf_style(base_mpf_style='charles', gridcolor='#2a2d3a', facecolor='#0f1117', edgecolor='#2a2d3a', figcolor='#0f1117')
     
     fig, axlist = mpf.plot(df, type='candle', addplot=apds, figscale=1.5,
                            style=s, volume=False, datetime_format='%b %Y', 
                            tight_layout=True, returnfig=True)
     
-    # Set tick colors to white
+    # Set tick colors to white and ensure they are visible on both sides if needed, 
+    # but mpf usually handles the primary y-axis on the right.
     for ax in axlist:
-        ax.tick_params(axis='x', colors='white')
-        ax.tick_params(axis='y', colors='white')
+        ax.tick_params(axis='x', colors='white', labelsize=9)
+        ax.tick_params(axis='y', colors='white', labelsize=9)
+        # Ensure right-side ticks are enabled (mpf default)
+        ax.yaxis.set_tick_params(which='both', labelright=True)
 
     # Add large watermark to the background of the top panel (axlist[0])
     axlist[0].text(0.5, 0.5, ticker, transform=axlist[0].transAxes,
@@ -142,7 +145,7 @@ def generate_static_graph(ticker='AAPL'):
         # Adding a small legend for the MACD panel
         macd_leg = macd_ax.legend(loc='upper left', fontsize=8, frameon=False, labelcolor='white')
 
-    fig.savefig(output_path)
+    fig.savefig(output_path, facecolor=fig.get_facecolor())
     plt.close(fig)
     
     print(f"Static graph generated with watermark at: {output_path}")

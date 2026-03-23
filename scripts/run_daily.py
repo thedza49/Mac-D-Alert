@@ -55,10 +55,14 @@ PIPELINE = [
     ("Calculate MACD",   "calculate_macd.py",  True),
     ("Fetch Earnings",   "fetch_earnings.py",  False),
     ("Signal Detector",  "signal_detector.py", True),
+    ("Analyze Trades",   "analyze_lifecycles.py", True),
+    ("Generate Graphs",  "generate_static.py", False),
 ]
 
 SIGNALS_ONLY_PIPELINE = [
     ("Signal Detector",  "signal_detector.py", True),
+    ("Analyze Trades",   "analyze_lifecycles.py", True),
+    ("Generate Graphs",  "generate_static.py", False),
 ]
 
 

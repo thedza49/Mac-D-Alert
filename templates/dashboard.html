@@ -107,6 +107,30 @@
 
     <!-- Market Analysis Tab -->
     <div id="market" class="tab-content active">
+        <h2>Overall Backtest Scorecard</h2>
+        <table style="margin-bottom: 32px; border: 1px solid #2a2d3a; border-radius: 8px; overflow: hidden;">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Win Rate</th>
+                    <th>Avg Apex (Peak)</th>
+                    <th>Avg Final (Exit)</th>
+                    <th>Sample Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in scorecard %}
+                <tr>
+                    <td><strong>{{ s.ticker }}</strong></td>
+                    <td class="macd-pos" style="font-weight: 600;">{{ s.win_rate }}</td>
+                    <td class="macd-pos">{{ s.avg_apex }}</td>
+                    <td class="{{ 'macd-pos' if s.avg_final|replace('%','')|float > 0 else 'macd-neg' }}">{{ s.avg_final }}</td>
+                    <td style="color: #666;">{{ s.total }} trades</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
         <h2>Market Status & Signals</h2>
         <table>
             <thead>
@@ -150,11 +174,18 @@
                             <div class="evolution-container">
                                 {% for trade in m.evolution %}
                                 <div class="evolution-item">
-                                    <h4>Trade {{ loop.index }} ({{ trade.signal_date }})</h4>
+                                    <h4>Trade {{ loop.index }} ({{ trade.buy_date }})</h4>
                                     <div class="evolution-metrics">
                                         <div style="color: #fff; font-weight: 500;">BUY ${{ "%.2f"|format(trade.buy_price) }}</div>
-                                        <div>Peak: <span class="{{ 'macd-pos' if trade.peak_profit >= 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(trade.peak_profit * 100) }}</span> | {{ trade.days_to_peak:+d }}d</div>
-                                        <div>Final: <span class="{{ 'macd-pos' if trade.captured_profit >= 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(trade.captured_profit * 100) }}</span> | {{ trade.days_to_exit:+d }}d</div>
+                                        <div>Peak: <span class="{{ 'macd-pos' if trade.peak_profit >= 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(trade.peak_profit * 100) }}</span> | {{ "%+d"|format(trade.days_to_peak) if trade.days_to_peak is not none else '0' }}d</div>
+                                        <div>Approaching sell: 
+                                            {% if trade.days_to_approaching_sell is not none %}
+                                                <span class="{{ 'macd-pos' if trade.approaching_sell_profit >= 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(trade.approaching_sell_profit * 100) }}</span> | {{ "%+d"|format(trade.days_to_approaching_sell) }}d
+                                            {% else %}
+                                                na
+                                            {% endif %}
+                                        </div>
+                                        <div>Final Sell: <span class="{{ 'macd-pos' if trade.captured_profit >= 0 else 'macd-neg' }}">{{ "%+.1f%%"|format(trade.captured_profit * 100) }}</span> | {{ "%+d"|format(trade.days_to_exit) if trade.days_to_exit is not none else '0' }}d</div>
                                     </div>
                                 </div>
                                 {% endfor %}

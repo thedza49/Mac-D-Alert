@@ -32,23 +32,18 @@ def pair_signals(ticker: str) -> List[Dict]:
         signals = [dict(row) for row in cursor.fetchall()]
 
     pairs = []
-    open_buy = None
+    pending_buys = []
 
     for signal in signals:
         if signal['signal_type'] == 'BUY':
-            # Reset open buy if we hit another BUY (we only care about the first buy in a potential sequence)
-            # OR keep the first buy? 
-            # Plan says: "Fetch all BUY signals... find the EARLIEST SELL signal that occurs AFTER the buy date."
-            # So if we have BUY1, BUY2, SELL1. BUY1 pairs with SELL1. BUY2 might be ignored or paired with same SELL?
-            # Standard trade logic: BUY ➔ SELL closing.
-            if open_buy is None:
-                open_buy = signal
-        elif signal['signal_type'] == 'SELL' and open_buy:
-            pairs.append({
-                'buy': open_buy,
-                'sell': signal
-            })
-            open_buy = None # Reset after closing
+            pending_buys.append(signal)
+        elif signal['signal_type'] == 'SELL' and pending_buys:
+            for buy in pending_buys:
+                pairs.append({
+                    'buy': buy,
+                    'sell': signal
+                })
+            pending_buys = [] # Reset after closing all pending buys
 
     return pairs
 
