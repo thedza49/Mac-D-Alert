@@ -58,10 +58,9 @@ sudo systemctl enable --now macd-dashboard.service
 
 ### 3. Install n8n Workflows
 Import the following into n8n:
-- `n8n_workflow_collector.json` (Daily 1:30 PM)
-- `n8n_workflow_engine.json` (Triggers after Collector)
-- `n8n_workflow_notifier.json` (Polls every 30m)
-- `n8n_workflow_auditor.json` (Daily 3:00 AM)
+- `n8n_workflow_orchestrator.json` (Daily 1:30 PM - Master Logic)
+- `n8n_workflow_notifier.json` (Discord Messaging v1.6.0)
+- `n8n_workflow_backup.json` (Daily Database Maintenance)
 
 ## 🗺️ Mini Roadmap
 
