@@ -1,0 +1,19 @@
+# Mac-D-Alert — Crontab Entries
+# These two entries replace n8n entirely.
+#
+# To install, run:
+# crontab -e
+# Then paste the lines below (remove the leading #).
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+# 1. DAILY PIPELINE — runs at 1:45 PM PST (Mon–Fri)
+# Replaces: n8n Orchestrator workflow
+45 21 * * 1-5 cd /home/daniel/Mac-D-Alert && python3 scripts/run_daily.py >> logs/cron_run_daily.log 2>&1
+
+# 2. DISCORD NOTIFIER — polls every 30 minutes (Mon–Fri, market hours)
+# Replaces: n8n Workflow C (Discord Notifier)
+*/30 14-23 * * 1-5 cd /home/daniel/Mac-D-Alert && DISCORD_WEBHOOK_URL="YOUR_WEBHOOK_URL_HERE" python3 scripts/notify_discord.py >> logs/cron_notifier.log 2>&1# ─────────────────────────────────────────────────────────────────────────────
+# NOTE: Replace YOUR_WEBHOOK_URL_HERE with your actual Discord webhook URL,
+# or set DISCORD_WEBHOOK_URL as a persistent environment variable in
+# /etc/environment or ~/.bashrc instead.
