@@ -1,86 +1,84 @@
 # Mac-D-Alert (Sovson Analytics)
 
-Automated stock market technical analysis engine designed to identify high-probability "Buy" and "Approaching Buy" signals. Running locally on Raspberry Pi, optimized for speed, reliability, and zero-cost AI orchestration.
+Automated stock market technical analysis engine designed to identify high-probability Buy and Approaching Buy signals. Running locally on Raspberry Pi, optimized for speed, reliability, and minimal dependencies.
 
 ## 🎯 Overview
-Mac-D-Alert monitors a basket of high-growth stocks (Magnificent 7 base) and identifies trend reversals using a dual-confirmation strategy:
+Mac-D-Alert monitors a focused basket of high-growth stocks and identifies trend reversals using a dual-confirmation strategy:
 1. **5-Day Rolling MACD**: Detects momentum shifts and crossover acceleration.
 2. **Heikin Ashi Price Action**: Filters out market noise by requiring trend confirmation before issuing a signal.
 
 ## 🏗️ Architecture
-The system is built to be "token-free" and reboot-resilient:
 - **Language**: Python 3.11+
 - **Database**: SQLite (`/home/daniel/Mac-D-Alert/data/sovson_analytics.db`)
- - `signals` (Raw crossovers and history)
- - `trade_lifecycles` (Signal pairings, apex discovery, and efficiency metrics)
-- **Web UI**: Flask Dashboard ([http://raspberrypi.local:5000](http://raspberrypi.local:5000))
- - **Scorecard**: Aggregated win rates and average performance per ticker.
- - **Evolution View**: Visual history of the last 3 completed trades.
-- **Persistence**: Managed via `systemd` (`macd-dashboard.service`)
-- **Orchestration**: Native `cron` jobs trigger the daily pipeline and Discord notifications — no external tools required.
+  - `signals` — raw crossovers and performance history
+  - `trade_lifecycles` — BUY/SELL pairings, apex discovery, and capture efficiency
+- **Web UI**: Flask Dashboard (`http://raspberrypi.local:5000`)
+  - Evolution View: visual history of the last 3 completed trades
+- **Persistence**: managed via `systemd` (`macd-dashboard.service`)
+- **Orchestration**: native `cron` jobs — no Docker, no n8n, no external tools
 
-## 📊 Data Pipeline & Logic
-1. **Collector (`fetch_prices.py`, `fetch_earnings.py`)**: Runs daily at 1:45 PM PST to pull OHLCV data (via `yahooquery`) and analyst ratings/earnings dates (via FMP v4).
-2. **Engine (`calculate_macd.py`, `signal_detector.py`)**: Computes 5-day MACD/Signal/Histogram and Heikin Ashi candles. Scans for signal criteria (Histogram crossover + HA confirmation).
-3. **Lifecycle Engine (`analyze_lifecycles.py`)**: Pairs BUY signals with subsequent SELL signals to calculate "Captured Profit" vs "Peak Profit" (Apex).
-4. **Audit (`data_auditor.py`)**: Daily database health checks to ensure data integrity and backtest completeness.
-5. **Notifier (`notify_discord.py`)**: Polls the internal API for unsent signals every 30 minutes and delivers rich embeds to Discord.
+## 📊 Data Pipeline
 
-### 📉 Confidence Scoring & Filters
-Every signal is scored (0-100) based on:
-- **MACD Gap Convergence**: Speed and distance to crossover.
-- **HA Trend Strength**: Confirmation of bullish/bearish candle bodies.
-- **Analyst Sentiment**: Integration with firm-specific price targets and upside calculations.
-- **Earnings Safety**: Penalizes signals occurring immediately before earnings calls.
+Daily pipeline runs at 1:45 PM PST (Mon–Fri) via cron:
 
-## 🔔 Enhanced Notifications (v1.7.0)
-Automated Discord alerts include:
-- **ANSI Colored Evolution**: A minimalist text block showing the "Signal Evolution" for the last 3 trades (Green for gains, Red for losses).
-- **Peak Performance (Apex)**: Displays how high a trade went (and how many days it took) before the signal eventually closed.
-- **Confidence Score**: Displayed in every alert (0–100).
-- **Scorecard Link**: Direct access to the live performance metrics on the local portal.
+1. **`fetch_prices.py`** — pulls OHLCV data via `yahooquery`, calculates Heikin Ashi candles
+2. **`fetch_earnings.py`** — pulls analyst ratings and earnings dates via FMP v4
+3. **`calculate_macd.py`** — computes 5-day rolling MACD / Signal / Histogram + 50-day MA
+4. **`signal_detector.py`** — detects 4-phase signals (BUY, APPROACHING_BUY, SELL, APPROACHING_SELL), writes to DB
+5. **`analyze_lifecycles.py`** — pairs BUY→SELL signals, calculates captured profit vs peak profit (apex)
+6. **`generate_static.py`** — regenerates chart images for the dashboard
 
-## 🚀 Simple Setup Guide (Non-Coders)
+Notifications run every 30 minutes (Mon–Fri) via cron:
 
-### 1. Install the "Brain"
+7. **`notify_telegram.py`** — polls Flask API for unsent signals, delivers to Telegram
+
+## 🔔 Telegram Notifications
+
+Alerts are delivered to a private Telegram channel and include:
+- Signal type and ticker with color-coded emoji
+- Price at signal
+- Signal evolution — last 3 completed trade outcomes
+- Link to the live dashboard
+
+## 🚀 Setup
+
+### 1. Install dependencies
 ```bash
 cd ~/Mac-D-Alert
 pip install -r requirements.txt
 python3 scripts/setup_database.py
-python3 scripts/analyze_lifecycles.py # Initialize trade history
 ```
 
-### 2. Set Up the Dashboard
+### 2. Set up the dashboard
 ```bash
 sudo cp macd-dashboard.service /etc/systemd/system/
 sudo systemctl enable --now macd-dashboard.service
 ```
 
-### 3. Set Up Cron Jobs
-
-Open your crontab editor:
+### 3. Set up cron jobs
 ```bash
 crontab -e
 ```
 
-Then add the contents of crontab.txt (in the repo root), replacing YOUR_WEBHOOK_URL_HERE with your actual Discord webhook URL.
+Add the following two entries:
+```
+# Daily pipeline — 1:45 PM PST (Mon–Fri)
+45 21 * * 1-5 cd /home/daniel/Mac-D-Alert && python3 scripts/run_daily.py >> logs/cron_run_daily.log 2>&1
 
-Two jobs will be installed:
+# Telegram notifier — every 30 mins (Mon–Fri)
+*/30 14-23 * * 1-5 cd /home/daniel/Mac-D-Alert && TELEGRAM_BOT_TOKEN="your_token_here" python3 scripts/notify_telegram.py >> logs/cron_notifier.log 2>&1
+```
 
-- 1:45 PM PST (Mon–Fri) — runs the full daily pipeline
-- Every 30 mins (Mon–Fri) — checks for new signals and posts to Discord
+## 🗺️ Roadmap
 
-That’s it. No Docker, no n8n, no external tools.
+- [x] ~~Replace n8n with native cron + Python orchestration~~
+- [x] Signal Lifecycle Engine — apex tracking and capture efficiency
+- [x] ~~Confidence score in alerts~~
+- [x] Migrate notifications from Discord to Telegram
+- [ ] Signal quality validation — confirm MACD BUY signals predict positive forward returns
+- [ ] Betting market signals — surface prediction market data for a ticker when a signal fires
+- [ ] Multi-indicator platform — pluggable pattern library, MACD as Indicator #1
 
-## 🗺️ Mini Roadmap
+---
 
-- [x] Stability & Reliability Patch: Replaced n8n with native cron + Python for zero-overhead orchestration.
-- [x] Discord Notification Redesign: Implemented v1.6.0 ANSI-colored Signal Evolution format.
-- [x] Backtesting Expectations: Implemented Signal Lifecycle Engine and Apex tracking.
-- [x] Confidence Score in Alerts: Surfaced in Discord notifications.
-- [ ] Signal Quality Validation: Run analyze_signals.py to confirm MACD BUY signals predict positive forward returns.
-- [ ] Prediction Market Integration: Research sentiment analysis from Polymarket/Kalshi as a new scoring indicator.
-
------
-
-*Developed for Daniel (Sovson Analytics) by Nia @ OpenClaw.*
+*Sovson Analytics*
