@@ -2,21 +2,19 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
 # Environments
 .env
 .venv
 env/
 venv/
 ENV/
-
 # Logs
 *.log
 nohup.out
-
 # Database
 *.db
 scripts/static/*.png
-
 # OS
 .DS_Store
+# Runtime
+.run_daily.lock
