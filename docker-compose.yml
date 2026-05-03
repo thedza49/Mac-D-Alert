@@ -1,0 +1,21 @@
+# Mac-D-Alert — docker-compose.yml
+
+services:
+  macd-alert:
+    build: .
+    container_name: macd_alert
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      # Database lives on the Pi permanently — survives container rebuilds
+      - /home/daniel/Mac-D-Alert/data:/app/data
+      # Logs accessible from Pi for debugging
+      - /home/daniel/Mac-D-Alert/logs:/app/logs
+      # Static charts
+      - /home/daniel/Mac-D-Alert/scripts/static:/app/scripts/static
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - FMP_API_KEY=${FMP_API_KEY}
+    env_file:
+      - .env
