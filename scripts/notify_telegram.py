@@ -80,16 +80,13 @@ def mark_signal_sent(signal_id: int) -> bool:
         return False
 
 
-def escape_md(text: str) -> str:
-    """Escape special characters for Telegram MarkdownV2."""
-    special = r"\_*[]()~`>#+-=|{}.!"
-    for ch in special:
-        text = text.replace(ch, f"\\{ch}")
-    return text
+def escape_html(text: str) -> str:
+    """Escape special characters for Telegram HTML mode."""
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def build_message(signal: dict) -> str:
-    """Build a MarkdownV2 formatted message for a single signal."""
+    """Build an HTML formatted message for a single signal."""
     ticker      = signal.get("ticker", "???")
     signal_type = signal.get("signal_type", "???")
     price       = signal.get("price_at_signal", 0)
@@ -101,20 +98,19 @@ def build_message(signal: dict) -> str:
     label = signal_type.replace("_", " ")
 
     lines = []
-    lines.append(f"{emoji} *{escape_md(ticker)} — {escape_md(label)}*")
+    lines.append(f"{emoji} <b>{escape_html(ticker)} — {escape_html(label)}</b>")
     lines.append("")
-    lines.append(f"💰 *Price:* ${escape_md(f'{price:,.2f}')}")
+    lines.append(f"💰 <b>Price:</b> ${escape_html(f'{price:,.2f}')}")
 
     if score is not None:
-        lines.append(f"🎯 *Confidence:* {int(score)}/100")
+        lines.append(f"🎯 <b>Confidence:</b> {int(score)}/100")
 
-    lines.append(f"📊 *Win Rate:* {int(win_rate)}%")
+    lines.append(f"📊 <b>Win Rate:</b> {int(win_rate)}%")
     lines.append("")
-    lines.append("*Signal Evolution:*")
-    lines.append(f"```\n{lifecycle}\n```")
-    lines.append("")
-    lines.append(f"🔗 [View Dashboard](http://raspberrypi\\.local:5000)")
-    lines.append(f"_{escape_md(datetime.now().strftime('%Y-%m-%d %H:%M PST'))}_")
+    lines.append("<b>Signal Evolution:</b>")
+    lines.append(f"<pre>{escape_html(lifecycle)}</pre>")
+    lines.append(f"🔗 <a href='http://raspberrypi.local:5000'>View Dashboard</a>")
+    lines.append(f"<i>{escape_html(datetime.now().strftime('%Y-%m-%d %H:%M PST'))}</i>")
 
     return "\n".join(lines)
 
@@ -129,7 +125,7 @@ def send_to_telegram(text: str) -> bool:
             "chat_id":              CHAT_ID,
             "message_thread_id":    TOPIC_ID,
             "text":                 text,
-            "parse_mode":           "MarkdownV2",
+            "parse_mode":           "HTML",
             "disable_web_page_preview": True,
         }
         r = requests.post(f"{TELEGRAM_API}/sendMessage", json=payload, timeout=10)
