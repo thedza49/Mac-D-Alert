@@ -2,10 +2,10 @@
 # Runs inside the container. Replaces the Pi's native Mac-D-Alert cron entries.
 
 # Daily pipeline — 1:45 PM PST (21:45 UTC, Mon–Fri)
-45 21 * * 1-5 cd /app && python3 scripts/run_daily.py >> /app/logs/cron_run_daily.log 2>&1
+45 21 * * 1-5 cd /app && /usr/local/bin/python3 scripts/run_daily.py >> /app/logs/cron_run_daily.log 2>&1
 
 # Telegram notifier — every 30 mins during market hours (Mon–Fri)
-*/30 14-23 * * 1-5 cd /app && python3 scripts/notify_telegram.py >> /app/logs/cron_notifier.log 2>&1
+*/30 14-23 * * 1-5 cd /app && /usr/local/bin/python3 scripts/notify_telegram.py >> /app/logs/cron_notifier.log 2>&1
 
 # Health check — 10 AM PST daily
-0 18 * * * cd /app && python3 scripts/check_health.py >> /app/logs/cron_health.log 2>&1
+0 18 * * * cd /app && /usr/local/bin/python3 scripts/check_health.py >> /app/logs/cron_health.log 2>&1

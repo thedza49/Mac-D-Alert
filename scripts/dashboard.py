@@ -243,7 +243,7 @@ def get_unsent_signals():
                (SELECT avg_price_target FROM earnings_data WHERE ticker = s.ticker ORDER BY fetched_date DESC LIMIT 1) as consensus_target
         FROM signals s
         LEFT JOIN earnings_data e ON e.ticker = s.ticker AND e.fetched_date = (SELECT MAX(fetched_date) FROM earnings_data WHERE ticker = s.ticker)
-        WHERE s.discord_message_id IS NULL
+        WHERE s.discord_message_id IS NULL OR s.discord_message_id = ''
         ORDER BY s.signal_date DESC
     """).fetchall()
     
@@ -260,6 +260,7 @@ def get_unsent_signals():
 @app.route("/api/signals/mark-sent/<int:signal_id>", methods=["POST"])
 def mark_signal_sent(signal_id):
     conn = get_connection()
+    # Using 'SENT' as a flag in the legacy discord_message_id column
     conn.execute("UPDATE signals SET discord_message_id = 'SENT' WHERE id = ?", (signal_id,))
     conn.commit()
     conn.close()

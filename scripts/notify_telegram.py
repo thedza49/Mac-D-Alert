@@ -39,8 +39,8 @@ log = logging.getLogger(__name__)
 # ── Config ────────────────────────────────────────────────────────────────────
 FLASK_BASE_URL   = "http://127.0.0.1:5000"
 BOT_TOKEN        = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-CHAT_ID          = "-1003850036083"   # your Sovson Analytics supergroup
-TOPIC_ID         = 2                  # mac-d channel topic
+CHAT_ID          = os.environ.get("TELEGRAM_CHAT_ID", "-1003850036083")
+TOPIC_ID         = os.environ.get("TELEGRAM_TOPIC_ID", "2")
 
 TELEGRAM_API     = f"https://api.telegram.org/bot{BOT_TOKEN}"
 

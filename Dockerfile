@@ -7,6 +7,7 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y \
     cron \
     curl \
+    sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
