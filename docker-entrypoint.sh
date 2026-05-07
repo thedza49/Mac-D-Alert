@@ -4,6 +4,9 @@
 
 echo "Starting Mac-D-Alert..."
 
+# Export environment variables for cron
+printenv | grep -v "no_proxy" >> /etc/environment
+
 # Start cron daemon
 service cron start
 
