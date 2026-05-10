@@ -19,6 +19,9 @@ import logging
 import requests
 from pathlib import Path
 from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
