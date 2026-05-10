@@ -66,8 +66,10 @@ Add the following two entries:
 45 21 * * 1-5 cd /home/daniel/Mac-D-Alert && python3 scripts/run_daily.py >> logs/cron_run_daily.log 2>&1
 
 # Telegram notifier — every 30 mins (Mon–Fri)
-*/30 14-23 * * 1-5 cd /home/daniel/Mac-D-Alert && TELEGRAM_BOT_TOKEN="your_token_here" python3 scripts/notify_telegram.py >> logs/cron_notifier.log 2>&1
+*/30 14-23 * * 1-5 cd /home/daniel/Mac-D-Alert && python3 scripts/notify_telegram.py >> logs/cron_notifier.log 2>&1
 ```
+
+> ⚠️ Credentials are loaded automatically from a `.env` file in the project root. See `.env.example` for required variables.
 
 ## 🗺️ Roadmap
 
